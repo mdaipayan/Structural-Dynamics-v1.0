@@ -83,6 +83,12 @@
             <button id="tab-btn-inverse" onclick="window.switchTab('inverse')" class="px-4 md:px-6 py-3 text-sm md:text-base font-bold text-slate-500 border-b-4 border-transparent hover:bg-slate-200 transition-colors focus:outline-none -mb-[2px]">
                 🎯 Inverse Design
             </button>
+            <button id="tab-btn-mdof" onclick="window.switchTab('mdof')" class="px-4 md:px-6 py-3 text-sm md:text-base font-bold text-slate-500 border-b-4 border-transparent hover:bg-slate-200 transition-colors focus:outline-none -mb-[2px]">
+                🏢 MDOF Modes & Response
+            </button>
+            <button id="tab-btn-equiv" onclick="window.switchTab('equiv')" class="px-4 md:px-6 py-3 text-sm md:text-base font-bold text-slate-500 border-b-4 border-transparent hover:bg-slate-200 transition-colors focus:outline-none -mb-[2px]">
+                🌉 Equivalent SDOF
+            </button>
         </div>
 
         <!-- TAB: SOLVER -->
@@ -403,6 +409,161 @@
             
         </div>
 
+        <!-- TAB: MDOF MODES & RESPONSE -->
+        <div id="tab-mdof" class="hidden grid-cols-1 lg:grid-cols-[7fr_17fr] gap-6">
+            <div class="space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center border-b pb-2">
+                        <span class="bg-blue-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-sm mr-2">1</span>
+                        System Size
+                    </h2>
+                    <div class="flex items-center gap-3 mb-3">
+                        <label class="text-sm font-semibold text-slate-700">Degrees of Freedom:</label>
+                        <select id="mdof-n" class="input-field w-24" onchange="window.buildMDOFInputs()">
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="window.loadMDOFPreset('chain')" class="text-xs bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full font-bold border border-indigo-200">Shear Chain (Q1-type)</button>
+                        <button onclick="window.loadMDOFPreset('classic3')" class="text-xs bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-bold border border-emerald-200">Symmetric 3-Mass</button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3 italic">Tip: enter K and M in consistent units (e.g. N/m and kg). Use symbolic K=1, M=1 to get answers as multiples of √(K/M).</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center border-b pb-2">
+                        <span class="bg-blue-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-sm mr-2">2</span>
+                        Mass Matrix [M]
+                    </h2>
+                    <div id="mdof-M-grid" class="overflow-x-auto"></div>
+                    <p class="text-xs text-slate-500 mt-2">Diagonal lumped-mass entries (off-diagonals editable for consistent mass).</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center border-b pb-2">
+                        <span class="bg-blue-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-sm mr-2">3</span>
+                        Stiffness Matrix [K]
+                    </h2>
+                    <div id="mdof-K-grid" class="overflow-x-auto"></div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 border-l-4 border-l-amber-500">
+                    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center border-b pb-2">
+                        <span class="bg-amber-500 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-sm mr-2">4</span>
+                        Response Analysis (optional)
+                    </h2>
+                    <div class="flex space-x-2 mb-3 bg-slate-100 p-1 rounded-lg text-sm">
+                        <button id="mdof-mode-modes" onclick="window.setMDOFMode('modes')" class="flex-1 py-1.5 font-bold rounded-md bg-white shadow-sm text-slate-800">Modes Only</button>
+                        <button id="mdof-mode-resp" onclick="window.setMDOFMode('resp')" class="flex-1 py-1.5 font-bold rounded-md text-slate-500">Time Response</button>
+                    </div>
+                    <div id="mdof-resp-inputs" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Initial displacements (comma-sep)</label>
+                            <input type="text" id="mdof-u0" class="input-field text-sm" placeholder="e.g. 0.1,0.2,0.3">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Initial velocities (comma-sep)</label>
+                            <input type="text" id="mdof-v0" class="input-field text-sm" placeholder="0,0,0">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Force on DOF (1-based)</label>
+                                <input type="number" id="mdof-fdof" class="input-field text-sm" placeholder="e.g. 1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Force type</label>
+                                <select id="mdof-ftype" class="input-field text-sm bg-white">
+                                    <option value="none">None (free)</option>
+                                    <option value="step">Step F0</option>
+                                    <option value="harmonic">F0 sin(ωt)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">F0</label>
+                                <input type="number" id="mdof-f0" class="input-field text-sm" placeholder="2000">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">ω [rad/s] (harmonic)</label>
+                                <input type="number" id="mdof-fw" class="input-field text-sm" placeholder="10">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Total time [s]</label>
+                                <input type="number" id="mdof-T" class="input-field text-sm" value="2">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Method</label>
+                                <select id="mdof-method" class="input-field text-sm bg-white">
+                                    <option value="modal">Modal superposition</option>
+                                    <option value="newmark">Newmark-β (avg accel)</option>
+                                    <option value="central">Central Difference</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Rayleigh damping (α, β) — optional</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="mdof-ralpha" class="input-field text-sm" placeholder="α (mass) 0">
+                                <input type="number" id="mdof-rbeta" class="input-field text-sm" placeholder="β (stiff) 0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6 md:p-8 flex flex-col h-full">
+                <h2 class="text-2xl font-bold text-slate-800 mb-4 border-b pb-4 flex items-center justify-between">
+                    <span>Eigen-solution & Mode Shapes</span>
+                    <span id="mdof-status" class="text-sm px-3 py-1 bg-slate-100 text-slate-500 rounded-full font-medium">Ready</span>
+                </h2>
+                <div id="mdof-output" class="flex-1 space-y-6 text-slate-800"></div>
+            </div>
+        </div>
+
+        <!-- TAB: EQUIVALENT SDOF -->
+        <div id="tab-equiv" class="hidden grid-cols-1 lg:grid-cols-[7fr_17fr] gap-6">
+            <div class="space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center border-b pb-2">
+                        <span class="bg-blue-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-sm mr-2">1</span>
+                        Element Type
+                    </h2>
+                    <select id="equiv-type" class="input-field bg-white mb-3" onchange="window.buildEquivInputs()">
+                        <optgroup label="Beams (mass at a point)">
+                            <option value="cantilever">Cantilever, tip mass (3EI/L³)</option>
+                            <option value="ssbeam-center">Simply supported, mass at center (48EI/L³)</option>
+                            <option value="ssbeam-general">Simply supported, mass at distance a (3EIL/(a²b²))</option>
+                            <option value="fixedfixed-center">Fixed-fixed, mass at center (192EI/L³)</option>
+                            <option value="propped-center">Propped cantilever, mass at center (768EI/7L³)</option>
+                        </optgroup>
+                        <optgroup label="Trusses (axial members, mass at node)">
+                            <option value="truss">Truss — vertical DOF, members share AE</option>
+                        </optgroup>
+                        <optgroup label="Frames (portal / column)">
+                            <option value="cantcol">Cantilever column, lateral (3EI/L³)</option>
+                            <option value="portal-sway">Portal frame sway, 2 fixed-base columns (24EI/L³)</option>
+                        </optgroup>
+                    </select>
+                    <p class="text-xs text-slate-500 italic">Computes equivalent stiffness k, then ωₙ=√(k/m), f=ωₙ/2π, T=1/f.</p>
+                </div>
+
+                <div id="equiv-inputs" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6 md:p-8 flex flex-col h-full">
+                <h2 class="text-2xl font-bold text-slate-800 mb-4 border-b pb-4 flex items-center justify-between">
+                    <span>Equivalent SDOF Solution</span>
+                    <span id="equiv-status" class="text-sm px-3 py-1 bg-slate-100 text-slate-500 rounded-full font-medium">Ready</span>
+                </h2>
+                <div id="equiv-output" class="flex-1 space-y-6 text-slate-800"></div>
+            </div>
+        </div>
+
     </div>
 
     <!-- MODALS -->
@@ -604,7 +765,7 @@
         initFirebase();
 
         window.switchTab = (tabId) => {
-            const tabs = ['solver', 'formulas', 'history', 'inverse', 'pdf'];
+            const tabs = ['solver', 'formulas', 'history', 'inverse', 'pdf', 'mdof', 'equiv'];
             
             tabs.forEach(t => {
                 const btn = document.getElementById(`tab-btn-${t}`);
@@ -626,6 +787,10 @@
 
             if (tabId === 'history') window.fetchHistory();
             if (tabId === 'inverse') window.calcInverse();
+            if (tabId === 'mdof') { document.getElementById('tab-mdof').classList.add('grid'); window.solveMDOF && window.solveMDOF(); }
+            else { const mp=document.getElementById('tab-mdof'); if(mp && tabId!=='mdof') mp.classList.remove('grid'); }
+            if (tabId === 'equiv') { document.getElementById('tab-equiv').classList.add('grid'); window.solveEquiv && window.solveEquiv(); }
+            else { const ep=document.getElementById('tab-equiv'); if(ep && tabId!=='equiv') ep.classList.remove('grid'); }
         }
 
         // --- SMART ASSIGNMENT IMPORTER (PDF + IMAGE PASTE) ---
@@ -1299,12 +1464,415 @@
             badge.textContent = `${window.isForced ? 'Forced' : 'Free'} - ${dampingType}`;
             badge.className = `text-sm px-3 py-1 rounded-full font-bold shadow-sm border border-black/10 ${badgeColor}`;
 
+            // ===== Compute A, B, X, phi (solution constants) =====
+            let phi = 0; // forced phase
+            if (window.isForced) {
+                const r = w / wn;
+                X = (f0 / k) / Math.sqrt(Math.pow(1 - r*r, 2) + Math.pow(2*zeta*r, 2));
+                rawPhi = Math.atan2(2*zeta*r, 1 - r*r); // atan2 handles r>1 quadrant
+                phi = rawPhi;
+            }
+            // transient initial conditions (subtract steady state at t=0)
+            const xpr0 = window.isForced ? X * Math.sin(-phi) : 0;
+            const vpr0 = window.isForced ? X * w * Math.cos(-phi) : 0;
+            const x0t = x0 - xpr0;
+            const v0t = v0 - vpr0;
+            if (zeta === 0) { A = x0t; B = v0t / wn; }
+            else if (zeta < 1) { A = x0t; B = (v0t + zeta*wn*A) / wd; }
+            else if (Math.abs(zeta-1) < 0.001) { A = x0t; B = v0t + wn*A; }
+            else { B = (v0t - s1*x0t)/(s2 - s1); A = x0t - B; }
+
+            // x(t) evaluator
+            const xfun = (t) => {
+                let xc;
+                if (zeta === 0) xc = A*Math.cos(wn*t) + B*Math.sin(wn*t);
+                else if (zeta < 1) xc = Math.exp(-zeta*wn*t)*(A*Math.cos(wd*t) + B*Math.sin(wd*t));
+                else if (Math.abs(zeta-1) < 0.001) xc = (A + B*t)*Math.exp(-wn*t);
+                else xc = A*Math.exp(s1*t) + B*Math.exp(s2*t);
+                const xp = window.isForced ? X*Math.sin(w*t - phi) : 0;
+                return xc + xp;
+            };
+
+            const phiDeg = window.isForced ? (rawPhi*180/Math.PI) : 0;
+
             let html = `
-            <div class="bg-slate-900 rounded-xl p-5 shadow-xl border border-slate-700 text-white mb-8">
-                <div class="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 class="text-sm font-bold text-blue-400 uppercase tracking-widest">Live Dynamic Simulation</h3>
-                        <p class="text-xs text-slate-400 mt-1">Real-time mapping of \\( x(t) \\) to a physical model</p>
-                    </div>
-                    <div class="flex space-x-3 items-center">
-                        <select onchange="window.changeTheme(this.value)" class="bg-slate-800 text-slate-200 outline-none border border-slate-600 rounded px-2 py-1.5 text-xs font-semibold shadow-sm cursor-pointer hover:bg-slate-7
+            <div class="bg-slate-900 rounded-xl p-5 shadow-xl border border-slate-700 text-white mb-6">
+                <h3 class="text-sm font-bold text-blue-400 uppercase tracking-widest mb-3">Live Response  x(t)</h3>
+                <canvas id="sdof-canvas" width="900" height="300" class="w-full bg-slate-950 rounded"></canvas>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3"><div class="text-xs text-blue-600 font-semibold">ωₙ</div><div class="text-lg font-bold text-blue-800">${window.fmt(wn,4)}<span class="text-xs"> rad/s</span></div></div>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3"><div class="text-xs text-purple-600 font-semibold">C_c</div><div class="text-lg font-bold text-purple-800">${window.fmt(cc,2)}</div></div>
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3"><div class="text-xs text-amber-600 font-semibold">ζ</div><div class="text-lg font-bold text-amber-800">${window.fmt(zeta,4)}</div></div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3"><div class="text-xs text-emerald-600 font-semibold">f</div><div class="text-lg font-bold text-emerald-800">${window.fmt(wn/(2*Math.PI),4)}<span class="text-xs"> Hz</span></div></div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+                <h3 class="font-bold text-slate-800 mb-3 border-b pb-2">Solution — ${window.isForced ? 'Forced' : 'Free'}, ${dampingType}</h3>
+                <p class="text-xs text-slate-500 mb-2">Characteristic roots: \\( ${eigenHtml} \\)</p>
+                ${extraVarsHtml}
+                <p class="math-block text-slate-800 mb-2"><strong>General form:</strong> \\( x(t) = ${genDispStr} \\)</p>`;
+
+            if (window.isForced) {
+                html += `<div class="bg-purple-50 rounded-lg p-3 my-3 text-sm">
+                    <p>Freq ratio \\( r = \\omega/\\omega_n = ${window.fmt(w/wn,4)} \\)</p>
+                    <p>Steady amplitude \\( X = ${window.fmt(X,6)} \\) m</p>
+                    <p>Phase \\( \\phi = ${window.fmt(phiDeg,2)}^\\circ \\) ${(w/wn)>1?'<span class="text-red-600 font-bold">(r>1: quadrant-corrected)</span>':''}</p>
+                </div>`;
+            }
+            html += `<div class="bg-slate-50 rounded-lg p-3 text-sm">
+                <p><strong>Constants from initial conditions</strong> (x₀=${x0}, v₀=${v0}):</p>
+                <p class="mt-1">A = <span class="font-mono font-bold text-blue-700">${window.fmt(A,5)}</span> &nbsp;&nbsp; B = <span class="font-mono font-bold text-blue-700">${window.fmt(B,5)}</span></p>
+                <p class="math-block mt-2"><strong>Final:</strong> \\( x(t) = ${genDispStr} \\)</p>
+                <p class="text-xs text-slate-500 mt-1">with A, B (and X, φ) substituted above.</p>
+            </div></div>`;
+
+            outputDiv.innerHTML = html;
+            if (window.MathJax) MathJax.typesetPromise([outputDiv]).catch(()=>{});
+
+            // draw plot
+            requestAnimationFrame(() => {
+                const cv = document.getElementById('sdof-canvas'); if (!cv) return;
+                const ctx = cv.getContext('2d'); const W=cv.width, H=cv.height, pad=40;
+                ctx.clearRect(0,0,W,H);
+                const Tmax = window.isForced ? Math.max(6*Math.PI/Math.max(w,0.1), 8/wn) : (zeta<1 ? 8/(zeta*wn||wn*0.1) : 8/wn);
+                const Tend = Math.min(Tmax, 50);
+                const Npts = 800; let xmax=0; const xs=[];
+                for(let i=0;i<=Npts;i++){const t=Tend*i/Npts; const xv=xfun(t); xs.push(xv); xmax=Math.max(xmax,Math.abs(xv));}
+                xmax = xmax || 1;
+                const PX=s=>pad+(W-2*pad)*s/Npts, PY=v=>H/2-(v/xmax)*(H/2-pad);
+                ctx.strokeStyle='#334155'; ctx.beginPath(); ctx.moveTo(pad,H/2); ctx.lineTo(W-pad,H/2); ctx.stroke();
+                ctx.strokeStyle='#334155'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,H-pad); ctx.stroke();
+                ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.beginPath();
+                xs.forEach((v,i)=>{const x=PX(i),y=PY(v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}); ctx.stroke();
+                ctx.fillStyle='#94a3b8'; ctx.font='11px sans-serif';
+                ctx.fillText(`+${window.fmt(xmax,3)} m`, 4, pad+8);
+                ctx.fillText(`t = ${window.fmt(Tend,2)} s`, W-pad-50, H/2+16);
+                ctx.fillText('x(t) [m]', 4, H/2-4);
+            });
+        };
+
+        // theme stub (original referenced changeTheme; keep no-op so old markup is harmless)
+        window.changeTheme = (v) => { window.simTheme = v; };
+        window.loadExample = (type) => {
+            window.switchTab('solver');
+            const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
+            if(type==='decay'){ window.setForceMode('free'); set('inp-m',10); set('inp-k',2000); set('inp-c',50); set('inp-x0',0.05); set('inp-v0',0); }
+            else if(type==='beating'){ window.setForceMode('forced'); set('inp-m',50); set('inp-k',2e5); set('inp-c',0); set('inp-f0',100); set('inp-w',2*Math.PI*28); set('inp-x0',0); set('inp-v0',0); }
+            window.updateCalculations();
+        };
+        window.clearAll = () => {
+            ['inp-m','inp-k','inp-c','inp-f0','inp-w','inp-x0','inp-v0','inp-dst'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+            window.updateCalculations();
+        };
+
+        // ============================================================
+        // ===============  MDOF + EQUIVALENT-SDOF ENGINE  ============
+        // ============================================================
+        // (Appended: adds 3-tab dynamics solver. Pure JS, no deps.)
+
+        // ---------- Linear algebra ----------
+        const LA = {
+          zeros:(n,m)=>Array.from({length:n},()=>new Array(m).fill(0)),
+          eye:(n)=>{const I=LA.zeros(n,n);for(let i=0;i<n;i++)I[i][i]=1;return I;},
+          matmul:(A,B)=>{const n=A.length,m=B[0].length,p=B.length,C=LA.zeros(n,m);
+            for(let i=0;i<n;i++)for(let kk=0;kk<p;kk++){const a=A[i][kk];if(!a)continue;for(let j=0;j<m;j++)C[i][j]+=a*B[kk][j];}return C;},
+          matvec:(A,x)=>A.map(r=>r.reduce((s,a,j)=>s+a*x[j],0)),
+          transpose:(A)=>{const n=A.length,m=A[0].length,T=LA.zeros(m,n);for(let i=0;i<n;i++)for(let j=0;j<m;j++)T[j][i]=A[i][j];return T;},
+          scale:(A,s)=>A.map(r=>r.map(v=>v*s)),
+          addM:(A,B)=>A.map((r,i)=>r.map((v,j)=>v+B[i][j])),
+          solve:(Ain,bin)=>{const n=Ain.length,A=Ain.map(r=>r.slice()),b=bin.slice();
+            for(let c=0;c<n;c++){let piv=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[piv][c]))piv=r;
+              [A[c],A[piv]]=[A[piv],A[c]];[b[c],b[piv]]=[b[piv],b[c]];const d=A[c][c];
+              for(let r=0;r<n;r++){if(r===c)continue;const f=A[r][c]/d;for(let kk=c;kk<n;kk++)A[r][kk]-=f*A[c][kk];b[r]-=f*b[c];}}
+            return b.map((v,i)=>v/A[i][i]);}
+        };
+        function choleskyLower(M){const n=M.length,L=LA.zeros(n,n);
+          for(let i=0;i<n;i++)for(let j=0;j<=i;j++){let s=M[i][j];for(let kk=0;kk<j;kk++)s-=L[i][kk]*L[j][kk];
+            L[i][j]=(i===j)?Math.sqrt(s):s/L[j][j];}return L;}
+        function forwardSubMat(L,B){const n=L.length,m=B[0].length,Y=LA.zeros(n,m);
+          for(let col=0;col<m;col++)for(let i=0;i<n;i++){let s=B[i][col];for(let kk=0;kk<i;kk++)s-=L[i][kk]*Y[kk][col];Y[i][col]=s/L[i][i];}return Y;}
+        function jacobiEig(Ain){const n=Ain.length;let A=Ain.map(r=>r.slice()),V=LA.eye(n);
+          for(let sweep=0;sweep<100;sweep++){let off=0;for(let p=0;p<n;p++)for(let q=p+1;q<n;q++)off+=A[p][q]*A[p][q];
+            if(off<1e-22)break;
+            for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){if(Math.abs(A[p][q])<1e-20)continue;
+              const phi=0.5*Math.atan2(2*A[p][q],A[q][q]-A[p][p]),c=Math.cos(phi),s=Math.sin(phi);
+              for(let kk=0;kk<n;kk++){const akp=A[kk][p],akq=A[kk][q];A[kk][p]=c*akp-s*akq;A[kk][q]=s*akp+c*akq;}
+              for(let kk=0;kk<n;kk++){const apk=A[p][kk],aqk=A[q][kk];A[p][kk]=c*apk-s*aqk;A[q][kk]=s*apk+c*aqk;}
+              for(let kk=0;kk<n;kk++){const vkp=V[kk][p],vkq=V[kk][q];V[kk][p]=c*vkp-s*vkq;V[kk][q]=s*vkp+c*vkq;}}}
+          return {vals:A.map((r,i)=>r[i]),vecs:V};}
+        function generalizedEig(K,M){
+          const L=choleskyLower(M);
+          const C=forwardSubMat(L,K);
+          const A=LA.transpose(forwardSubMat(L,LA.transpose(C)));
+          const n=A.length;for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=(A[i][j]+A[j][i])/2;A[i][j]=v;A[j][i]=v;}
+          const {vals,vecs}=jacobiEig(A);
+          const LT=LA.transpose(L);
+          const idx=vals.map((v,i)=>i).sort((a,b)=>vals[a]-vals[b]);
+          const omega2=idx.map(i=>Math.max(vals[i],0));
+          const modes=idx.map(i=>{const y=vecs.map(r=>r[i]);const phi=new Array(n).fill(0);
+            for(let r=n-1;r>=0;r--){let s=y[r];for(let kk=r+1;kk<n;kk++)s-=LT[r][kk]*phi[kk];phi[r]=s/LT[r][r];}
+            const mx=phi.reduce((a,b)=>Math.abs(b)>Math.abs(a)?b:a,0);return phi.map(v=>v/(mx||1));});
+          return {omega2,omega:omega2.map(Math.sqrt),modes};}
+
+        function newmark(M,C,K,Ft,u0,v0,dt,N,beta=0.25,gamma=0.5){
+          const a0=LA.solve(M,Ft(0).map((f,i)=>f-C[i].reduce((s,c,j)=>s+c*v0[j],0)-K[i].reduce((s,kk,j)=>s+kk*u0[j],0)));
+          let u=u0.slice(),v=v0.slice(),a=a0.slice();
+          const c1=1/(beta*dt*dt),c2=gamma/(beta*dt),c3=1/(beta*dt),c4=1/(2*beta)-1,c5=gamma/beta-1,c6=dt*(gamma/(2*beta)-1);
+          const Keff=LA.addM(LA.addM(K,LA.scale(M,c1)),LA.scale(C,c2));const U=[u.slice()];
+          for(let s=1;s<=N;s++){const t=s*dt;
+            const rM=u.map((ui,i)=>c1*ui+c3*v[i]+c4*a[i]),rC=u.map((ui,i)=>c2*ui+c5*v[i]+c6*a[i]);
+            const Feff=Ft(t).map((f,i)=>f+LA.matvec(M,rM)[i]+LA.matvec(C,rC)[i]);
+            const un=LA.solve(Keff,Feff);
+            const an=un.map((uni,i)=>c1*(uni-u[i])-c3*v[i]-c4*a[i]);
+            const vn=v.map((vi,i)=>vi+dt*((1-gamma)*a[i]+gamma*an[i]));
+            u=un;v=vn;a=an;U.push(u.slice());}return U;}
+
+        function centralDiff(M,C,K,Ft,u0,v0,dt,N){
+          const a0=LA.solve(M,Ft(0).map((f,i)=>f-C[i].reduce((s,c,j)=>s+c*v0[j],0)-K[i].reduce((s,kk,j)=>s+kk*u0[j],0)));
+          let uPrev=u0.map((ui,i)=>ui-dt*v0[i]+0.5*dt*dt*a0[i]),u=u0.slice();
+          const Keff=LA.addM(LA.scale(M,1/(dt*dt)),LA.scale(C,1/(2*dt)));const U=[u0.slice()];
+          for(let s=1;s<=N;s++){const t=(s-1)*dt;
+            const Ac=LA.addM(LA.scale(M,1/(dt*dt)),LA.scale(C,-1/(2*dt))),Bc=LA.addM(K,LA.scale(M,-2/(dt*dt)));
+            const rhs=Ft(t).map((f,i)=>f-LA.matvec(Ac,uPrev)[i]-LA.matvec(Bc,u)[i]);
+            const un=LA.solve(Keff,rhs);uPrev=u;u=un;U.push(u.slice());}return U;}
+
+        function modalResponse(M,C,K,Ft,u0,v0,dt,N){
+          const {omega,modes}=generalizedEig(K,M);const n=M.length;
+          const Phi=modes.map(md=>{const mm=LA.matvec(M,md).reduce((s,v,i)=>s+v*md[i],0);const sc=1/Math.sqrt(mm);return md.map(v=>v*sc);});
+          // modal damping from C: zeta_r = phi^T C phi / (2 w)
+          const zeta=Phi.map((ph,r)=>{const cc=LA.matvec(C,ph).reduce((s,v,i)=>s+v*ph[i],0);return omega[r]>0?cc/(2*omega[r]):0;});
+          const q0=Phi.map(ph=>LA.matvec(M,u0).reduce((s,v,i)=>s+v*ph[i],0));
+          const qd0=Phi.map(ph=>LA.matvec(M,v0).reduce((s,v,i)=>s+v*ph[i],0));
+          // modal force p_r(t)=phi^T F(t); integrate each modal SDOF by Newmark (handles forcing+damping generally)
+          const U=[];const qs=q0.slice(),qds=qd0.slice();
+          // pre-init modal accels
+          const pr0=Phi.map(ph=>Ft(0).reduce((s,f,i)=>s+f*ph[i],0));
+          let qa=omega.map((w,r)=>pr0[r]-2*zeta[r]*w*qds[r]-w*w*qs[r]);
+          for(let s=0;s<=N;s++){const t=s*dt;
+            const u=new Array(n).fill(0);for(let r=0;r<n;r++)for(let i=0;i<n;i++)u[i]+=qs[r]*Phi[r][i];
+            U.push(u);
+            if(s===N)break;
+            const pr=Phi.map(ph=>Ft(t+dt).reduce((acc,f,i)=>acc+f*ph[i],0));
+            for(let r=0;r<n;r++){const w=omega[r],z=zeta[r],b=0.25,g=0.5;
+              const c1=1/(b*dt*dt),c2=g/(b*dt),c3=1/(b*dt),c4=1/(2*b)-1,c5=g/b-1,c6=dt*(g/(2*b)-1);
+              const keff=w*w+c1+2*z*w*c2;
+              const feff=pr[r]+(c1*qs[r]+c3*qds[r]+c4*qa[r])+2*z*w*(c2*qs[r]+c5*qds[r]+c6*qa[r]);
+              const qn=feff/keff;const an=c1*(qn-qs[r])-c3*qds[r]-c4*qa[r];const vn=qds[r]+dt*(0.5*qa[r]+0.5*an);
+              qs[r]=qn;qds[r]=vn;qa[r]=an;}}
+          return {U,omega,zeta,Phi};}
+
+        // ---------- MDOF UI ----------
+        window.mdofMode='modes';
+        window.setMDOFMode=(mode)=>{window.mdofMode=mode;
+          document.getElementById('mdof-mode-modes').className=mode==='modes'?"flex-1 py-1.5 font-bold rounded-md bg-white shadow-sm text-slate-800":"flex-1 py-1.5 font-bold rounded-md text-slate-500";
+          document.getElementById('mdof-mode-resp').className=mode==='resp'?"flex-1 py-1.5 font-bold rounded-md bg-white shadow-sm text-slate-800":"flex-1 py-1.5 font-bold rounded-md text-slate-500";
+          document.getElementById('mdof-resp-inputs').style.display=mode==='resp'?'block':'none';window.solveMDOF();};
+
+        window.buildMDOFInputs=()=>{
+          const n=parseInt(document.getElementById('mdof-n').value);
+          const mk=(id,diag)=>{let h='<table class="text-sm"><tbody>';
+            for(let i=0;i<n;i++){h+='<tr>';for(let j=0;j<n;j++){const val=diag?(i===j?'1':'0'):(i===j?'2':(Math.abs(i-j)===1?'-1':'0'));
+              h+=`<td class="p-0.5"><input type="number" id="${id}-${i}-${j}" value="${val}" class="input-field text-xs w-16 text-center" oninput="window.solveMDOF()"></td>`;}h+='</tr>';}
+            return h+'</tbody></table>';};
+          document.getElementById('mdof-M-grid').innerHTML=mk('mM',true);
+          document.getElementById('mdof-K-grid').innerHTML=mk('mK',false);
+          window.solveMDOF();};
+
+        window.loadMDOFPreset=(type)=>{
+          if(type==='chain'){document.getElementById('mdof-n').value='3';window.buildMDOFInputs();
+            // K3=3K,K2=2K,K1=K ; M3=3M,M2=2M,M1=M  (chain wall-1-2-3)
+            const Md=[1,2,3],k1=1,k2=2,k3=3;
+            const Kk=[[k1+k2,-k2,0],[-k2,k2+k3,-k3],[0,-k3,k3]];
+            for(let i=0;i<3;i++)for(let j=0;j<3;j++){document.getElementById(`mM-${i}-${j}`).value=i===j?Md[i]:0;document.getElementById(`mK-${i}-${j}`).value=Kk[i][j];}
+          }else if(type==='classic3'){document.getElementById('mdof-n').value='3';window.buildMDOFInputs();
+            const Kk=[[2,-1,0],[-1,2,-1],[0,-1,2]];
+            for(let i=0;i<3;i++)for(let j=0;j<3;j++){document.getElementById(`mM-${i}-${j}`).value=i===j?1:0;document.getElementById(`mK-${i}-${j}`).value=Kk[i][j];}}
+          window.solveMDOF();};
+
+        window.readMatrix=(id,n)=>{const A=LA.zeros(n,n);for(let i=0;i<n;i++)for(let j=0;j<n;j++)A[i][j]=parseFloat(document.getElementById(`${id}-${i}-${j}`).value)||0;return A;};
+
+        window.solveMDOF=()=>{
+          const out=document.getElementById('mdof-output');const status=document.getElementById('mdof-status');
+          if(!document.getElementById('mM-0-0')){window.buildMDOFInputs();return;}
+          const n=parseInt(document.getElementById('mdof-n').value);
+          const M=window.readMatrix('mM',n),K=window.readMatrix('mK',n);
+          let res;try{res=generalizedEig(K,M);}catch(e){out.innerHTML=`<div class="text-red-500 py-8">Matrix error: ${e.message}. Check that M is positive-definite.</div>`;return;}
+          status.textContent=`${n} modes found`;status.className="text-sm px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full font-bold";
+
+          let html=`<div class="bg-slate-900 text-white rounded-xl p-5 shadow-lg">
+            <h3 class="text-sm font-bold text-blue-400 uppercase tracking-widest mb-3">Eigenvalue Problem</h3>
+            <p class="text-slate-300 text-sm mb-2">Solve \\( [K]\\{\\phi\\} = \\omega^2 [M]\\{\\phi\\} \\) &nbsp;&rarr;&nbsp; \\( \\det([K]-\\omega^2[M])=0 \\)</p>
+            <div class="grid grid-cols-1 md:grid-cols-${Math.min(n,3)} gap-3 mt-3">`;
+          res.omega.forEach((w,i)=>{html+=`<div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+            <div class="text-xs text-slate-400">Mode ${i+1}</div>
+            <div class="text-lg font-bold text-emerald-400">\\(\\omega_${i+1}\\) = ${window.fmt(w,4)} <span class="text-xs text-slate-400">rad/s</span></div>
+            <div class="text-xs text-slate-300">\\(\\omega^2\\)=${window.fmt(res.omega2[i],4)} &nbsp; f=${window.fmt(w/(2*Math.PI),4)} Hz</div>
+            <div class="text-xs text-slate-300">T=${window.fmt(2*Math.PI/(w||1),4)} s</div></div>`;});
+          html+=`</div></div>`;
+
+          // mode shape vectors
+          html+=`<div class="bg-white border border-slate-200 rounded-xl p-5"><h3 class="font-bold text-slate-800 mb-3">Mode Shape Vectors (normalized to max = 1)</h3><div class="overflow-x-auto"><table class="text-sm w-full"><thead><tr class="border-b"><th class="text-left p-2">DOF</th>`;
+          res.modes.forEach((md,i)=>html+=`<th class="p-2 text-center text-blue-700">Mode ${i+1}</th>`);
+          html+=`</tr></thead><tbody>`;
+          for(let dof=0;dof<n;dof++){html+=`<tr class="border-b border-slate-100"><td class="p-2 font-semibold">x${dof+1}</td>`;
+            res.modes.forEach(md=>html+=`<td class="p-2 text-center font-mono ${md[dof]<0?'text-red-600':'text-slate-800'}">${window.fmt(md[dof],3)}</td>`);html+=`</tr>`;}
+          html+=`</tbody></table></div></div>`;
+
+          // animated mode shape SVG
+          html+=`<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-slate-800">Animated Mode Shapes</h3>
+            <button onclick="window.toggleModeAnim()" id="mdof-anim-btn" class="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full font-bold">⏸ Pause</button></div>
+            <div class="grid grid-cols-1 md:grid-cols-${Math.min(n,3)} gap-4" id="mdof-anim-container">`;
+          res.modes.forEach((md,i)=>{html+=`<div class="border border-slate-200 rounded-lg p-2 bg-slate-50">
+            <div class="text-xs font-bold text-center text-slate-600 mb-1">Mode ${i+1} (\\(\\omega\\)=${window.fmt(res.omega[i],2)})</div>
+            <canvas id="mdof-canvas-${i}" width="200" height="${60+n*55}" class="w-full"></canvas></div>`;});
+          html+=`</div><p class="text-xs text-slate-500 mt-2 italic">Masses shown stacked (DOF 1 at base). Relative amplitudes follow the mode vector.</p></div>`;
+
+          // response
+          if(window.mdofMode==='resp'){
+            const u0=(document.getElementById('mdof-u0').value||'').split(',').map(s=>parseFloat(s.trim())||0);
+            const v0=(document.getElementById('mdof-v0').value||'').split(',').map(s=>parseFloat(s.trim())||0);
+            while(u0.length<n)u0.push(0);while(v0.length<n)v0.push(0);
+            const fdof=parseInt(document.getElementById('mdof-fdof').value)-1;
+            const ftype=document.getElementById('mdof-ftype').value;
+            const f0v=parseFloat(document.getElementById('mdof-f0').value)||0;
+            const fwv=parseFloat(document.getElementById('mdof-fw').value)||0;
+            const T=parseFloat(document.getElementById('mdof-T').value)||2;
+            const method=document.getElementById('mdof-method').value;
+            const ralpha=parseFloat(document.getElementById('mdof-ralpha').value)||0;
+            const rbeta=parseFloat(document.getElementById('mdof-rbeta').value)||0;
+            const C=LA.addM(LA.scale(M,ralpha),LA.scale(K,rbeta));
+            const Ft=(t)=>{const f=new Array(n).fill(0);if(ftype!=='none'&&fdof>=0&&fdof<n){f[fdof]=ftype==='step'?f0v:f0v*Math.sin(fwv*t);}return f;};
+            const dt=Math.min(T/600, 0.9*2/Math.max(...res.omega)); // CD stability
+            const N=Math.ceil(T/dt);
+            let U;try{
+              if(method==='newmark')U=newmark(M,C,K,Ft,u0,v0,dt,N);
+              else if(method==='central')U=centralDiff(M,C,K,Ft,u0,v0,dt,N);
+              else U=modalResponse(M,C,K,Ft,u0,v0,dt,N).U;
+            }catch(e){U=null;}
+            html+=`<div class="bg-white border border-slate-200 rounded-xl p-5"><h3 class="font-bold text-slate-800 mb-1">Time Response — ${method==='newmark'?'Newmark-β':method==='central'?'Central Difference':'Modal Superposition'}</h3>
+              <p class="text-xs text-slate-500 mb-3">dt=${window.fmt(dt,5)}s, ${N} steps. ${ralpha||rbeta?`Rayleigh C=${ralpha}M+${rbeta}K.`:'Undamped.'}</p>
+              <canvas id="mdof-resp-canvas" width="900" height="340" class="w-full border border-slate-100 rounded"></canvas>
+              <div id="mdof-resp-legend" class="flex flex-wrap gap-3 mt-2 text-xs"></div></div>`;
+            window._mdofResp={U,dt,N,n};
+          } else { window._mdofResp=null; }
+
+          out.innerHTML=html;
+          if(window.MathJax)MathJax.typesetPromise([out]).catch(()=>{});
+          window._mdofModes=res;window._mdofN=n;window._modeAnimRun=true;
+          window.startModeAnimation();
+          if(window._mdofResp&&window._mdofResp.U)window.drawMDOFResponse();
+        };
+
+        // animated mode shapes
+        window.toggleModeAnim=()=>{window._modeAnimRun=!window._modeAnimRun;
+          document.getElementById('mdof-anim-btn').textContent=window._modeAnimRun?'⏸ Pause':'▶ Play';
+          if(window._modeAnimRun)window.startModeAnimation();};
+        window.startModeAnimation=()=>{
+          if(window._modeAnimFrame)cancelAnimationFrame(window._modeAnimFrame);
+          const res=window._mdofModes,n=window._mdofN;if(!res)return;
+          const t0=performance.now();
+          const draw=(now)=>{const t=(now-t0)/1000;
+            for(let i=0;i<res.modes.length;i++){const cv=document.getElementById(`mdof-canvas-${i}`);if(!cv)return;
+              const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+              const cx=W/2,baseY=H-30,floorH=(H-50)/n;const amp=30*Math.sin(res.omega[i]*t*0.6);
+              // ground
+              ctx.strokeStyle='#94a3b8';ctx.beginPath();ctx.moveTo(20,baseY+10);ctx.lineTo(W-20,baseY+10);ctx.stroke();
+              let prevX=cx,prevY=baseY+10;
+              for(let dof=0;dof<n;dof++){const y=baseY-dof*floorH;const x=cx+res.modes[i][dof]*amp;
+                ctx.strokeStyle='#cbd5e1';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(prevX,prevY);ctx.lineTo(x,y);ctx.stroke();
+                ctx.fillStyle=res.modes[i][dof]<0?'#ef4444':'#3b82f6';ctx.fillRect(x-16,y-12,32,24);
+                ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('m'+(dof+1),x,y+4);
+                prevX=x;prevY=y;}}
+            if(window._modeAnimRun)window._modeAnimFrame=requestAnimationFrame(draw);};
+          window._modeAnimFrame=requestAnimationFrame(draw);};
+
+        window.drawMDOFResponse=()=>{
+          const {U,dt,N,n}=window._mdofResp;const cv=document.getElementById('mdof-resp-canvas');if(!cv||!U)return;
+          const ctx=cv.getContext('2d');const W=cv.width,H=cv.height,pad=40;ctx.clearRect(0,0,W,H);
+          let umax=0;for(const row of U)for(const v of row)umax=Math.max(umax,Math.abs(v));umax=umax||1;
+          const X=s=>pad+(W-2*pad)*s/N, Y=v=>H/2-(v/umax)*(H/2-pad);
+          ctx.strokeStyle='#e2e8f0';ctx.beginPath();ctx.moveTo(pad,H/2);ctx.lineTo(W-pad,H/2);ctx.stroke();
+          ctx.strokeStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(pad,pad);ctx.lineTo(pad,H-pad);ctx.stroke();
+          const colors=['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6'];
+          const legend=document.getElementById('mdof-resp-legend');legend.innerHTML='';
+          for(let dof=0;dof<n;dof++){ctx.strokeStyle=colors[dof%5];ctx.lineWidth=1.8;ctx.beginPath();
+            for(let s=0;s<=N;s++){const x=X(s),y=Y(U[s][dof]);s===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+            legend.innerHTML+=`<span class="flex items-center"><span class="w-3 h-3 rounded-full mr-1" style="background:${colors[dof%5]}"></span>x${dof+1}(t)</span>`;}
+          ctx.fillStyle='#64748b';ctx.font='11px sans-serif';ctx.textAlign='left';
+          ctx.fillText('disp',5,H/2);ctx.fillText('t →',W-pad+5,H/2+4);
+          ctx.fillText(`±${window.fmt(umax,3)}`,5,pad+10);};
+
+        // ---------- EQUIVALENT SDOF ----------
+        const EQUIV_DEFS={
+          'cantilever':{k:(p)=>3*p.E*p.I/Math.pow(p.L,3),f:'k = 3EI/L^3',fields:['E','I','L','m']},
+          'ssbeam-center':{k:(p)=>48*p.E*p.I/Math.pow(p.L,3),f:'k = 48EI/L^3',fields:['E','I','L','m']},
+          'ssbeam-general':{k:(p)=>3*p.E*p.I*p.L/(p.a*p.a*Math.pow(p.L-p.a,2)),f:'k = 3EIL/(a^2 b^2),  b=L-a',fields:['E','I','L','a','m']},
+          'fixedfixed-center':{k:(p)=>192*p.E*p.I/Math.pow(p.L,3),f:'k = 192EI/L^3',fields:['E','I','L','m']},
+          'propped-center':{k:(p)=>768*p.E*p.I/(7*Math.pow(p.L,3)),f:'k = 768EI/7L^3',fields:['E','I','L','m']},
+          'cantcol':{k:(p)=>3*p.E*p.I/Math.pow(p.L,3),f:'k = 3EI/L^3 (single fixed-free column)',fields:['E','I','L','m']},
+          'portal-sway':{k:(p)=>2*12*p.E*p.I/Math.pow(p.L,3),f:'k = 2 × 12EI/L^3 (two fixed-fixed columns in sway)',fields:['E','I','L','m']},
+          'truss':{k:null,f:'k = AE / Σ(contribution),  via unit-load (see steps)',fields:['truss']}
+        };
+        const FIELD_META={E:{label:'E — Young\'s modulus [N/m²]',ph:'2e11'},I:{label:'I — moment of inertia [m⁴]',ph:'1e-8'},
+          L:{label:'L — length [m]',ph:'0.3'},a:{label:'a — load distance from one support [m]',ph:'1'},m:{label:'m — lumped mass [kg]',ph:'5'}};
+
+        window.buildEquivInputs=()=>{
+          const type=document.getElementById('equiv-type').value;const def=EQUIV_DEFS[type];const box=document.getElementById('equiv-inputs');
+          if(type==='truss'){box.innerHTML=`<h2 class="text-lg font-bold text-slate-800 mb-2 border-b pb-2">Truss Parameters</h2>
+            <p class="text-xs text-slate-600 mb-3">For a vertical-DOF truss with all members sharing AE, the deflection under unit vertical load P=1 is \\( \\delta = \\frac{1}{AE}\\sum n_i^2 L_i \\), so \\( k = AE / \\sum n_i^2 L_i \\), where \\(n_i\\) are member forces under unit load.</p>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">AE [N] (axial rigidity, same all members)</label>
+            <input type="number" id="eq-AE" class="input-field text-sm mb-2" placeholder="e.g. 2e8" oninput="window.solveEquiv()">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Σ nᵢ²Lᵢ  [m] (from unit-load analysis)</label>
+            <input type="number" id="eq-sum" class="input-field text-sm mb-2" placeholder="e.g. 12.5" oninput="window.solveEquiv()">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">m — lumped mass [kg]</label>
+            <input type="number" id="eq-m" class="input-field text-sm" placeholder="e.g. 100" oninput="window.solveEquiv()">
+            <p class="text-xs text-slate-400 mt-2 italic">Compute Σnᵢ²Lᵢ by hand (method of joints under P=1) and enter it here.</p>`;
+            window.solveEquiv();return;}
+          let h=`<h2 class="text-lg font-bold text-slate-800 mb-2 border-b pb-2">Parameters</h2>`;
+          def.fields.forEach(fk=>{const meta=FIELD_META[fk];h+=`<div class="mb-2"><label class="block text-xs font-semibold text-slate-700 mb-1">${meta.label}</label>
+            <input type="number" id="eq-${fk}" class="input-field text-sm" placeholder="${meta.ph}" oninput="window.solveEquiv()"></div>`;});
+          box.innerHTML=h;window.solveEquiv();};
+
+        window.solveEquiv=()=>{
+          const type=document.getElementById('equiv-type').value;const def=EQUIV_DEFS[type];
+          const out=document.getElementById('equiv-output');const status=document.getElementById('equiv-status');
+          const g=(id)=>parseFloat((document.getElementById(id)||{}).value);
+          let k,m,steps='';
+          if(type==='truss'){const AE=g('eq-AE'),sum=g('eq-sum');m=g('eq-m');
+            if(!AE||!sum||!m){out.innerHTML=`<div class="text-slate-400 py-12 text-center">Enter AE, Σnᵢ²Lᵢ and m.</div>`;status.textContent='Awaiting input';return;}
+            k=AE/sum;steps=`\\( k = \\dfrac{AE}{\\sum n_i^2 L_i} = \\dfrac{${AE}}{${sum}} = ${window.fmt(k,2)}\\ \\text{N/m} \\)`;
+          } else {
+            const p={E:g('eq-E'),I:g('eq-I'),L:g('eq-L'),a:g('eq-a'),m:g('eq-m')};m=p.m;
+            const need=def.fields.filter(f=>f!=='m');
+            if(need.some(f=>!p[f])|| !m){out.innerHTML=`<div class="text-slate-400 py-12 text-center">Enter all parameters.</div>`;status.textContent='Awaiting input';return;}
+            k=def.k(p);
+            steps=`\\( ${def.f} \\)<br>\\( k = ${window.fmt(k,2)}\\ \\text{N/m} \\)`;}
+          const wn=Math.sqrt(k/m),f=wn/(2*Math.PI),T=1/f,dst=m*9.81/k;
+          status.textContent='Solved';status.className="text-sm px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full font-bold";
+          out.innerHTML=`
+            <div class="bg-blue-50 border-l-4 border-blue-600 rounded-r-lg p-5">
+              <h3 class="font-bold text-blue-900 mb-2 uppercase text-sm tracking-wide">Step 1 — Equivalent Stiffness</h3>
+              <div class="text-slate-800">${steps}</div></div>
+            <div class="bg-emerald-50 border-l-4 border-emerald-600 rounded-r-lg p-5">
+              <h3 class="font-bold text-emerald-900 mb-2 uppercase text-sm tracking-wide">Step 2 — Natural Frequency</h3>
+              <div class="grid grid-cols-2 gap-4 text-slate-800">
+                <div>\\( \\omega_n = \\sqrt{k/m} = \\sqrt{${window.fmt(k,2)}/${m}} \\)<br><span class="text-xl font-bold text-emerald-700">${window.fmt(wn,4)} rad/s</span></div>
+                <div>\\( f = \\omega_n/2\\pi \\)<br><span class="text-xl font-bold text-emerald-700">${window.fmt(f,4)} Hz</span></div>
+                <div>\\( T = 1/f \\)<br><span class="text-lg font-bold text-slate-700">${window.fmt(T,4)} s</span></div>
+                <div>\\( \\delta_{st}=mg/k \\)<br><span class="text-lg font-bold text-slate-700">${window.fmt(dst,6)} m</span></div>
+              </div></div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+              💡 This reduces the continuous element to a single mass on a spring of stiffness k. Feed k and m into the <button onclick="window.equivToSolver(${m},${window.fmt(k,4)})" class="underline font-bold text-amber-800">SDOF Solver →</button> for full time-history, damping, or forced response.</div>`;
+          if(window.MathJax)MathJax.typesetPromise([out]).catch(()=>{});};
+
+        window.equivToSolver=(m,k)=>{window.switchTab('solver');
+          document.getElementById('inp-m').value=m;document.getElementById('inp-k').value=k;window.updateCalculations&&window.updateCalculations();};
+
+        // initialize new tabs
+        setTimeout(()=>{try{window.buildMDOFInputs();window.buildEquivInputs();}catch(e){console.warn('MDOF/Equiv init deferred',e);}},300);
+
+    </script>
+</body>
+</html>
