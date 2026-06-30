@@ -1528,6 +1528,23 @@
                 <p class="text-xs text-slate-500 mt-1">with A, B (and X, φ) substituted above.</p>
             </div></div>`;
 
+            // ---- Manual calculation walkthrough (collapsible) ----
+            const manualCtx = { m, k, c, f0, w, x0, v0, wn, cc, zeta, wd, dampingType, X, rawPhi, A, B };
+            html += `<div class="mt-4">
+                <button id="manual-toggle-btn" onclick="window.toggleManual()"
+                    class="w-full text-left px-4 py-3 rounded-lg bg-indigo-600 text-white font-bold shadow-sm hover:bg-indigo-700 transition-colors">
+                    ${window.showManual ? '📝 Hide manual steps' : '📝 Show how to calculate this by hand'}
+                </button>
+                <div id="manual-panel" style="display:${window.showManual ? 'block' : 'none'}"
+                    class="mt-3 bg-white border border-indigo-200 rounded-xl p-5">
+                    <div class="flex flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100 text-xs">
+                        <span class="text-slate-500 font-semibold">Legend:</span>
+                        ${HEAD("think / set up")} ${CALC("crunch numbers")} ${CHECK("verify")}
+                    </div>
+                    ${window.buildManualSteps(manualCtx)}
+                </div>
+            </div>`;
+
             outputDiv.innerHTML = html;
             if (window.MathJax) MathJax.typesetPromise([outputDiv]).catch(()=>{});
 
@@ -1565,6 +1582,126 @@
         window.clearAll = () => {
             ['inp-m','inp-k','inp-c','inp-f0','inp-w','inp-x0','inp-v0','inp-dst'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
             window.updateCalculations();
+        };
+
+
+        // ============================================================
+        // ===========  MANUAL CALCULATION WALKTHROUGH  ===============
+        // ============================================================
+        // Shows by-hand steps with explicit guidance on WHERE a calculator
+        // helps, and WHERE students should reason/check instead of compute.
+        // Reuses the values already computed in updateCalculations().
+
+        window.showManual = false;
+        window.toggleManual = () => {
+            window.showManual = !window.showManual;
+            const panel = document.getElementById('manual-panel');
+            const btn = document.getElementById('manual-toggle-btn');
+            if (panel) panel.style.display = window.showManual ? 'block' : 'none';
+            if (btn) btn.textContent = window.showManual ? '📝 Hide manual steps' : '📝 Show how to calculate this by hand';
+            if (window.showManual && window.MathJax) MathJax.typesetPromise([panel]).catch(()=>{});
+        };
+
+        // small helpers to render the calculator/reasoning tags
+        const CALC = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">🧮 Calculator${txt ? ': ' + txt : ''}</span>`;
+        const HEAD = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">🧠 By hand / reason${txt ? ': ' + txt : ''}</span>`;
+        const CHECK = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">✓ Sanity check${txt ? ': ' + txt : ''}</span>`;
+
+        // builds one step card
+        function manualStep(n, title, bodyHtml) {
+            return `<div class="border-l-4 border-slate-300 pl-4 py-2 mb-3">
+                <div class="font-bold text-slate-800 mb-1"><span class="text-slate-400">Step ${n}.</span> ${title}</div>
+                <div class="text-sm text-slate-700 space-y-1">${bodyHtml}</div></div>`;
+        }
+
+        // MAIN: returns the full manual walkthrough for the current SDOF case.
+        // ctx carries every value already computed upstream so nothing is recomputed.
+        window.buildManualSteps = (ctx) => {
+            const { m, k, c, f0, w, x0, v0, wn, cc, zeta, wd, dampingType, X, rawPhi, A, B } = ctx;
+            const f4 = (x) => window.fmt(x, 4);
+            const f2 = (x) => window.fmt(x, 2);
+            let s = [];
+            let n = 1;
+
+            // --- Step: natural frequency ---
+            s.push(manualStep(n++, "Natural frequency \\( \\omega_n = \\sqrt{k/m} \\)", `
+                <p>Substitute the numbers: \\( \\omega_n = \\sqrt{${f2(k)}/${f2(m)}} = \\sqrt{${f4(k/m)}} = ${f4(wn)} \\) rad/s.</p>
+                <p>${HEAD("set up the ratio k/m yourself")} — getting k and m in the right place is the conceptual part.</p>
+                <p>${CALC("only for the square root")} The division and √ are pure number-crunching; do them on the calculator. Keep 3–4 significant figures.</p>
+                <p>${CHECK("units")} k/m has units (N/m)/(kg) = 1/s², so its root is in rad/s. If your answer isn't a per-second quantity, a value was mis-entered.</p>`));
+
+            // --- Step: critical damping & ratio ---
+            s.push(manualStep(n++, "Critical damping \\( c_c \\) and damping ratio \\( \\zeta \\)", `
+                <p>\\( c_c = 2\\sqrt{km} = 2\\sqrt{${f2(k)}\\times${f2(m)}} = ${f4(cc)} \\) Ns/m, &nbsp; \\( \\zeta = c/c_c = ${f2(c)}/${f4(cc)} = ${f4(zeta)} \\).</p>
+                <p>${HEAD("decide which regime ζ puts you in")} This is the most important judgement on the whole problem — it decides the entire form of the solution:</p>
+                <ul class="list-disc ml-6 text-xs">
+                    <li>\\( \\zeta = 0 \\) → undamped (pure oscillation)</li>
+                    <li>\\( 0 < \\zeta < 1 \\) → underdamped (decaying oscillation)</li>
+                    <li>\\( \\zeta = 1 \\) → critically damped (fastest non-oscillatory return)</li>
+                    <li>\\( \\zeta > 1 \\) → overdamped (two real decays, no oscillation)</li>
+                </ul>
+                <p>${CALC("the two square roots and the final division")} ${CHECK("ζ is dimensionless")} If ζ came out with units, c and c_c aren't in compatible units.</p>
+                <p class="text-slate-600">Here ζ = ${f4(zeta)} → <strong>${dampingType}</strong>.</p>`));
+
+            // --- Step: roots / damped frequency, regime-specific ---
+            if (zeta === 0) {
+                s.push(manualStep(n++, "Roots of the characteristic equation", `
+                    <p>With no damping the roots are purely imaginary: \\( s = \\pm i\\omega_n = \\pm ${f4(wn)}\\,i \\).</p>
+                    <p>${HEAD("recognise that imaginary roots ⇒ sustained sine/cosine")} no decay term appears.</p>
+                    <p>${CALC("nothing new here")} — ω_n is already known from Step 1.</p>`));
+            } else if (zeta < 1) {
+                s.push(manualStep(n++, "Damped natural frequency \\( \\omega_d \\)", `
+                    <p>\\( \\omega_d = \\omega_n\\sqrt{1-\\zeta^2} = ${f4(wn)}\\sqrt{1-${f4(zeta)}^2} = ${f4(wd)} \\) rad/s.</p>
+                    <p>${HEAD("understand WHY ω_d < ω_n")} damping slows the oscillation slightly. This is a concept question favourite.</p>
+                    <p>${CALC("the 1−ζ² and its root")} ${CHECK("ω_d must be slightly less than ω_n")} — here ${f4(wd)} < ${f4(wn)}. If ω_d came out larger, you used the wrong formula.</p>`));
+            } else if (Math.abs(zeta - 1) < 0.001) {
+                s.push(manualStep(n++, "Repeated root (critical damping)", `
+                    <p>\\( s = -\\omega_n = -${f4(wn)} \\) (a repeated real root).</p>
+                    <p>${HEAD("remember the solution form changes")} a repeated root gives \\( (A+Bt)e^{-\\omega_n t} \\), the t-multiplied term is the thing students forget.</p>`));
+            } else {
+                const s1v = -zeta*wn + wn*Math.sqrt(zeta*zeta-1);
+                const s2v = -zeta*wn - wn*Math.sqrt(zeta*zeta-1);
+                s.push(manualStep(n++, "Two real roots (overdamped)", `
+                    <p>\\( s_{1,2} = -\\zeta\\omega_n \\pm \\omega_n\\sqrt{\\zeta^2-1} = ${f4(s1v)},\\ ${f4(s2v)} \\).</p>
+                    <p>${HEAD("note both roots are negative real ⇒ no oscillation")} just two decaying exponentials.</p>
+                    <p>${CALC("the ζ²−1 root and the two combinations")} ${CHECK("both roots negative")} a positive root would mean the system blows up, which is physically wrong for a passive system.</p>`));
+            }
+
+            // --- Forced branch ---
+            if (window.isForced) {
+                const r = w/wn;
+                s.push(manualStep(n++, "Frequency ratio and steady-state amplitude", `
+                    <p>\\( r = \\omega/\\omega_n = ${f2(w)}/${f4(wn)} = ${f4(r)} \\).</p>
+                    <p>\\( X = \\dfrac{F_0/k}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}} = ${f4(X)} \\) m.</p>
+                    <p>${HEAD("build the denominator carefully")} the single most common mistake is dropping the square on \\((1-r^2)\\). Write the bracket, THEN square it.</p>
+                    <p>${CALC("the whole denominator and final division")} this is genuinely calculator territory — but enter it in stages: compute \\((1-r^2)^2\\) and \\((2\\zeta r)^2\\) separately, add, then √. Don't try it in one keystroke chain.</p>
+                    <p>${CHECK("near resonance")} if \\( r \\approx 1 \\), X should approach \\( F_0/(k\\cdot 2\\zeta) \\) = ${zeta>0?f4(f0/(k*2*zeta)):'∞'} m. ${r>0.8&&r<1.2?'You are near resonance, so compare against this.':'You are away from resonance, so X should be modest.'}</p>`));
+
+                const phiDeg = rawPhi*180/Math.PI;
+                s.push(manualStep(n++, "Phase angle \\( \\phi \\)", `
+                    <p>\\( \\phi = \\tan^{-1}\\!\\dfrac{2\\zeta r}{1-r^2} = ${f2(phiDeg)}^\\circ \\).</p>
+                    <p>${HEAD("watch the quadrant when r > 1")} once \\( r>1 \\), \\(1-r^2\\) is negative and the phase passes 90°. A plain \\(\\tan^{-1}\\) gives the wrong quadrant — add 180° (or use atan2). ${r>1?'<strong>Here r > 1, so this correction applies.</strong>':'Here r < 1, so the plain inverse-tangent is fine.'}</p>
+                    <p>${CALC("the inverse tangent")} ${CHECK("φ between 0° and 180°")} phase for a driven SDOF always lies in that range; a negative result means you skipped the quadrant fix.</p>`));
+            }
+
+            // --- Constants from initial conditions ---
+            s.push(manualStep(n++, "Constants A and B from initial conditions", `
+                <p>Apply \\( x(0)=${x0} \\) and \\( \\dot{x}(0)=${v0} \\) to the general solution${window.isForced?' (after subtracting the steady-state part at t = 0)':''}.</p>
+                <p>Result: \\( A = ${f4(A)} \\), \\( B = ${f4(B)} \\).</p>
+                <p>${HEAD("this is algebra, not arithmetic")} set x(0) first (kills the sine term, gives A directly), then differentiate and set ẋ(0) for B. Do this symbolically before you put numbers in.</p>
+                <p>${CALC("only the final substitution")} once the symbolic expressions for A and B are written, plug numbers in at the very end.</p>
+                <p>${CHECK("t = 0 test")} substitute t = 0 back into your final x(t): it must return exactly x₀ = ${x0}. This one check catches most sign slips.</p>`));
+
+            // --- Closing guidance ---
+            const closing = `<div class="bg-slate-100 rounded-lg p-3 text-sm mt-2">
+                <p class="font-bold text-slate-800 mb-1">Rule of thumb — when to reach for the calculator</p>
+                <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                    <li>${HEAD("")} choosing formulas, deciding the damping regime, setting up A/B, and every quadrant/units/sanity judgement — these are where marks are won and lost.</li>
+                    <li>${CALC("")} square roots, the amplitude denominator, inverse-tangent, and the final numeric substitution — mechanical steps where the calculator is faster and more reliable.</li>
+                    <li><strong>Never</strong> let the calculator decide the <em>form</em> of the answer. It gives numbers; you supply the physics.</li>
+                </ul></div>`;
+
+            return s.join("") + closing;
         };
 
         // ============================================================
