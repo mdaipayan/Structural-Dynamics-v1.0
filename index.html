@@ -11,6 +11,8 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <!-- PDF.js library for client-side PDF parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- Tesseract.js for client-side OCR (Image Pasting) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -199,14 +201,20 @@
         <!-- TAB: SMART PDF IMPORTER -->
         <div id="tab-pdf" class="hidden grid grid-cols-1 lg:grid-cols-[12fr_12fr] gap-6">
             <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6 flex flex-col h-[700px]">
-                <h2 class="text-2xl font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">1. Upload Assignment PDF</h2>
-                <input type="file" id="pdf-upload" accept="application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition mb-4" onchange="window.handlePDFUpload(event)">
+                <h2 class="text-2xl font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">1. Upload PDF or Paste Image</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <input type="file" id="pdf-upload" accept="application/pdf,image/*" class="block text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition" onchange="window.handlePDFUpload(event)">
+                    <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-inner">
+                        💡 Tip: You can press <kbd class="bg-white px-1.5 py-0.5 rounded border border-slate-300">Ctrl+V</kbd> to paste a screenshot!
+                    </span>
+                </div>
                 
                 <div class="flex-1 bg-slate-100 rounded-lg overflow-hidden border border-slate-300 relative">
                     <iframe id="pdf-viewer" class="w-full h-full hidden"></iframe>
+                    <img id="image-viewer" class="w-full h-full object-contain hidden" />
                     <div id="pdf-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                         <svg class="w-16 h-16 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        <p>Upload a PDF to view it here.</p>
+                        <p>Upload a PDF or Paste an Image to view it here.</p>
                     </div>
                 </div>
             </div>
@@ -222,7 +230,7 @@
                 <div id="pdf-extracted-data" class="flex-1">
                     <div class="text-center text-slate-400 py-24">
                         <p class="text-lg">Waiting for document...</p>
-                        <p class="text-sm mt-2">The system will scan your PDF for Mass, Stiffness, Damping, and Force values.</p>
+                        <p class="text-sm mt-2">The system will scan your upload for Mass, Stiffness, Damping, and Force values.</p>
                     </div>
                 </div>
             </div>
@@ -465,7 +473,6 @@
         const initFirebase = async () => {
             try {
                 let auth;
-                // 1. Check if we're in the Sandbox Environment
                 if (typeof __firebase_config !== 'undefined') {
                     const firebaseConfig = JSON.parse(__firebase_config);
                     const app = initializeApp(firebaseConfig);
@@ -478,9 +485,7 @@
                     } else {
                         await signInAnonymously(auth);
                     }
-                } 
-                // 2. Otherwise, we are on GitHub Pages (Uses your personal Config)
-                else {
+                } else {
                     const firebaseConfig = {
                         apiKey: "AIzaSyA__ax18T1IWp94YAAGnTdkFlZfYPBOriM",
                         authDomain: "web-app-1212d.firebaseapp.com",
@@ -512,14 +517,11 @@
                             statusBadge.className = "bg-emerald-50 text-emerald-700 text-xs px-3 py-1.5 rounded-full font-semibold border border-emerald-200 shadow-sm flex items-center";
                             window.fetchHistory();
                         } else {
-                            // Check if user has completed profile setup
                             const userDoc = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid));
                             if (!userDoc.exists()) {
-                                // Needs setup
                                 statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 mr-2"></span> Setup Required`;
                                 document.getElementById('profile-modal').classList.remove('hidden');
                             } else {
-                                // Setup complete
                                 const userData = userDoc.data();
                                 const firstName = userData.name ? userData.name.split(' ')[0] : 'User';
                                 statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span> ${firstName} (${userData.role})`;
@@ -541,7 +543,6 @@
             }
         };
 
-        // Google Login Action
         window.loginWithGoogle = async () => {
             const provider = new GoogleAuthProvider();
             const auth = getAuth();
@@ -553,14 +554,12 @@
             }
         };
 
-        // Logout Action
         window.logout = async () => {
             const auth = getAuth();
             await signOut(auth);
             window.currentCalculationData = null;
         };
 
-        // Save Profile Action
         window.saveUserProfile = async () => {
             const role = document.getElementById('profile-role').value;
             const org = document.getElementById('profile-org').value || 'Independent';
@@ -576,7 +575,6 @@
                 
                 await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid), userData);
                 
-                // Hide modal and update UI
                 document.getElementById('profile-modal').classList.add('hidden');
                 const statusBadge = document.getElementById('auth-status');
                 const firstName = userData.name.split(' ')[0];
@@ -586,7 +584,6 @@
             }
         };
 
-        // Delete Calculation Action
         window.confirmDelete = (docId) => {
             const modal = document.getElementById('delete-modal');
             const confirmBtn = document.getElementById('confirm-delete-btn');
@@ -604,11 +601,8 @@
             modal.classList.remove('hidden');
         };
 
-        // Initialize immediately
         initFirebase();
 
-
-        // --- TAB NAVIGATION ---
         window.switchTab = (tabId) => {
             const tabs = ['solver', 'formulas', 'history', 'inverse', 'pdf'];
             
@@ -634,18 +628,24 @@
             if (tabId === 'inverse') window.calcInverse();
         }
 
-        // --- SMART PDF IMPORTER LOGIC ---
+        // --- SMART ASSIGNMENT IMPORTER (PDF + IMAGE PASTE) ---
         window.handlePDFUpload = async (event) => {
             const file = event.target.files[0];
-            if (!file || file.type !== 'application/pdf') return;
+            if (!file) return;
 
-            // Display in iframe
+            if (file.type.startsWith('image/')) {
+                window.handleImagePaste(file);
+                return;
+            }
+
+            if (file.type !== 'application/pdf') return;
+
             const fileUrl = URL.createObjectURL(file);
             document.getElementById('pdf-placeholder').classList.add('hidden');
+            document.getElementById('image-viewer').classList.add('hidden');
             document.getElementById('pdf-viewer').classList.remove('hidden');
             document.getElementById('pdf-viewer').src = fileUrl;
 
-            // Parse text using pdf.js
             document.getElementById('pdf-loading').classList.remove('hidden');
             document.getElementById('pdf-extracted-data').innerHTML = `
                 <div class="flex flex-col items-center justify-center py-20 text-slate-500">
@@ -676,15 +676,66 @@
             }
         };
 
+        // IMAGE PASTE INTERCEPTOR
+        document.addEventListener('paste', async (e) => {
+            const pdfTab = document.getElementById('tab-pdf');
+            if (pdfTab.classList.contains('hidden')) return; 
+
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file') {
+                    const blob = item.getAsFile();
+                    if (blob.type.startsWith('image/')) {
+                        e.preventDefault();
+                        window.handleImagePaste(blob);
+                        return;
+                    }
+                }
+            }
+        });
+
+        window.handleImagePaste = async (blob) => {
+            const fileUrl = URL.createObjectURL(blob);
+            document.getElementById('pdf-placeholder').classList.add('hidden');
+            document.getElementById('pdf-viewer').classList.add('hidden');
+            
+            const imgEl = document.getElementById('image-viewer');
+            imgEl.src = fileUrl;
+            imgEl.classList.remove('hidden');
+
+            document.getElementById('pdf-loading').classList.remove('hidden');
+            document.getElementById('pdf-extracted-data').innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20 text-slate-500">
+                    <svg class="w-12 h-12 mb-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p class="font-bold text-slate-700">Running Optical Character Recognition (OCR)...</p>
+                    <p class="text-xs mt-2">Extracting text from pasted image locally.</p>
+                </div>
+            `;
+
+            try {
+                // Initialize Tesseract worker
+                const worker = await Tesseract.createWorker('eng');
+                const ret = await worker.recognize(blob);
+                await worker.terminate();
+                
+                // Pipe the OCR text into the standard extraction engine!
+                window.processExtractedText(ret.data.text);
+            } catch (error) {
+                console.error("OCR Error", error);
+                document.getElementById('pdf-extracted-data').innerHTML = `<div class="text-red-500 text-center py-10">Error running OCR on image. Try pasting a clearer, higher-resolution image.</div>`;
+            } finally {
+                document.getElementById('pdf-loading').classList.add('hidden');
+            }
+        };
+
         window.processExtractedText = (text) => {
-            // Clean text to make matching easier (remove commas in numbers)
             const cleanText = text.replace(/(\d),(\d)/g, '$1$2').toLowerCase();
             
             let m = null, k = null, cZeta = null, f0 = null, w = null;
             let x0 = null, v0 = null;
             let foundAny = false;
 
-            // Mass / Weight
             const massMatch = cleanText.match(/(?:mass|m)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*kg/);
             if (massMatch) { m = parseFloat(massMatch[1]); foundAny = true; }
             
@@ -692,11 +743,10 @@
             if (weightMatch && !m) {
                 let weight = parseFloat(weightMatch[1]);
                 if (weightMatch[2] === 'kn') weight *= 1000;
-                m = window.fmt(weight / 9.81, 2); // Derive mass: W/g
+                m = window.fmt(weight / 9.81, 2); 
                 foundAny = true;
             }
 
-            // Stiffness / Spring Constant
             const kMatch = cleanText.match(/(?:stiffness|spring constant|k)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(kn\/m|n\/m|n\/mm|kn\/cm|mn\/m)/);
             if (kMatch) { 
                 k = parseFloat(kMatch[1]);
@@ -706,23 +756,20 @@
                 foundAny = true; 
             }
 
-            // Static Deflection (Alternative to K)
             const dstMatch = cleanText.match(/(?:static deflection|deflection)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(m|mm|cm)\b/);
             if (dstMatch && !k) {
                 let dst = parseFloat(dstMatch[1]);
                 if (dstMatch[2] === 'mm') dst /= 1000;
                 if (dstMatch[2] === 'cm') dst /= 100;
                 if (m) {
-                    k = window.fmt((m * 9.81) / dst, 2); // Derive stiffness: Mg / dst
+                    k = window.fmt((m * 9.81) / dst, 2);
                     foundAny = true;
                 }
             }
 
-            // Damping
             const dampMatch = cleanText.match(/(?:damping factor|damping ratio|zeta|c)\s*(?:is|of|:|=)?\s*([\d\.]+)/);
             if (dampMatch) { cZeta = parseFloat(dampMatch[1]); foundAny = true; }
 
-            // Force
             const forceMatch = cleanText.match(/(?:force|f|f0|amplitude of)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(kn|n)\b/);
             if (forceMatch) { 
                 f0 = parseFloat(forceMatch[1]); 
@@ -730,13 +777,11 @@
                 foundAny = true; 
             }
 
-            // Frequency
             const wMatch1 = cleanText.match(/sin\s*\(\s*([\d\.]+)\s*t\s*\)/);
             const wMatch2 = cleanText.match(/(?:frequency|omega|w|driving frequency)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*rad\/s/);
             if (wMatch1) { w = parseFloat(wMatch1[1]); foundAny = true; }
             else if (wMatch2) { w = parseFloat(wMatch2[1]); foundAny = true; }
 
-            // Initial Conditions
             const x0Match = cleanText.match(/(?:initial displacement|displaced by|released from|moved down by|moved up by)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(m|mm|cm)\b/);
             if (x0Match) {
                 x0 = parseFloat(x0Match[1]);
@@ -759,12 +804,11 @@
                 out.innerHTML = `
                     <div class="bg-amber-50 text-amber-800 p-4 rounded border border-amber-200">
                         <p class="font-bold">No standard parameters detected.</p>
-                        <p class="text-sm mt-1">Make sure the PDF contains standard text formats like "Mass of 100 kg" or "K = 10,000 N/m". Image-based scans without OCR cannot be read.</p>
+                        <p class="text-sm mt-1">Make sure the PDF or image contains standard text formats like "Mass of 100 kg" or "K = 10,000 N/m".</p>
                     </div>`;
                 return;
             }
 
-            // Determine if damping is Ratio (zeta) or Coefficient (C)
             let isZeta = false;
             let finalC = 0;
             let dampingDisplay = "None";
@@ -858,8 +902,8 @@
         // --- SDOF SOLVER UI LOGIC ---
         window.setForceMode = (mode) => {
             window.isForced = (mode === 'forced');
-            document.getElementById('btn-free').className = window.isForced ? "flex-1 py-1.5 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800" : "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-slate-800";
-            document.getElementById('btn-forced').className = window.isForced ? "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-slate-800" : "flex-1 py-1.5 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800";
+            document.getElementById('btn-free').className = window.isForced ? "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-slate-800" : "flex-1 py-1.5 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800";
+            document.getElementById('btn-forced').className = window.isForced ? "flex-1 py-1.5 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800" : "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-slate-800";
             document.getElementById('forced-inputs').style.display = window.isForced ? 'block' : 'none';
             document.getElementById('free-inputs').style.display = window.isForced ? 'none' : 'block';
             window.updateCalculations();
@@ -1182,21 +1226,39 @@
             let A = 0, B = 0;
 
             let dampingType = ""; let badgeColor = "";
-            if (zeta === 0) { dampingType = "Undamped"; badgeColor = "bg-emerald-100 text-emerald-700"; }
-            else if (zeta < 1) { dampingType = "Underdamped"; badgeColor = "bg-blue-100 text-blue-700"; }
-            else if (Math.abs(zeta - 1) < 0.001) { dampingType = "Critically Damped"; badgeColor = "bg-purple-100 text-purple-700"; }
-            else { dampingType = "Overdamped"; badgeColor = "bg-orange-100 text-orange-700"; }
+            let eigenHtml = ""; // Eigenvalues display
+
+            if (zeta === 0) { 
+                dampingType = "Undamped"; 
+                badgeColor = "bg-emerald-100 text-emerald-700"; 
+                eigenHtml = `\\pm ${window.fmt(wn)}i`;
+            }
+            else if (zeta < 1) { 
+                dampingType = "Underdamped"; 
+                badgeColor = "bg-blue-100 text-blue-700"; 
+                wd = wn * Math.sqrt(1 - Math.pow(zeta, 2));
+                eigenHtml = `-${window.fmt(zeta * wn)} \\pm ${window.fmt(wd)}i`;
+            }
+            else if (Math.abs(zeta - 1) < 0.001) { 
+                dampingType = "Critically Damped"; 
+                badgeColor = "bg-purple-100 text-purple-700"; 
+                eigenHtml = `-${window.fmt(wn)} \\text{ (Repeated)}`;
+            }
+            else { 
+                dampingType = "Overdamped"; 
+                badgeColor = "bg-orange-100 text-orange-700"; 
+                const root = wn * Math.sqrt(Math.pow(zeta, 2) - 1);
+                s1 = -zeta*wn + root; s2 = -zeta*wn - root;
+                eigenHtml = `${window.fmt(s1)}, \\; ${window.fmt(s2)}`;
+            }
 
             // Pre-calculate frequencies for the general equations block
             let decay = 0;
             let extraVarsHtml = "";
             if (zeta < 1 && zeta > 0) {
-                wd = wn * Math.sqrt(1 - Math.pow(zeta, 2));
                 decay = zeta * wn;
                 extraVarsHtml = `<p class="math-block mb-3 text-slate-700"><strong>Damped Freq:</strong> \\( \\omega_d = \\omega_n \\sqrt{1-\\zeta^2} = \\mathbf{${window.fmt(wd)} \\text{ rad/s}} \\)</p>`;
             } else if (zeta > 1) {
-                const root = wn * Math.sqrt(Math.pow(zeta, 2) - 1);
-                s1 = -zeta*wn + root; s2 = -zeta*wn - root;
                 extraVarsHtml = `<p class="math-block mb-3 text-slate-700"><strong>Roots:</strong> \\( s_1 = \\mathbf{${window.fmt(s1)}} \\), \\( s_2 = \\mathbf{${window.fmt(s2)}} \\)</p>`;
             }
 
@@ -1245,646 +1307,4 @@
                         <p class="text-xs text-slate-400 mt-1">Real-time mapping of \\( x(t) \\) to a physical model</p>
                     </div>
                     <div class="flex space-x-3 items-center">
-                        <select onchange="window.changeTheme(this.value)" class="bg-slate-800 text-slate-200 outline-none border border-slate-600 rounded px-2 py-1.5 text-xs font-semibold shadow-sm cursor-pointer hover:bg-slate-700 transition">
-                            <option value="classic" ${window.simTheme === 'classic' ? 'selected' : ''}>Theme: Abstract Model</option>
-                            <option value="building" ${window.simTheme === 'building' ? 'selected' : ''}>Theme: Civil (Building)</option>
-                            <option value="car" ${window.simTheme === 'car' ? 'selected' : ''}>Theme: Mech (Suspension)</option>
-                        </select>
-                        <button onclick="window.resetSimulation()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow">
-                            Restart (t=0)
-                        </button>
-                    </div>
-                </div>
-                <canvas id="sim-canvas" width="800" height="220" class="w-full bg-slate-800 rounded-lg border border-slate-700 shadow-inner"></canvas>
-            </div>
-
-            <div class="mb-8">
-                <h3 class="text-xl font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-slate-700">1. The Holy Trinity</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
-                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Natural Freq.</p>
-                        <p class="text-xl font-extrabold text-slate-800">\\( \\omega_n = ${window.fmt(wn)} \\)</p>
-                    </div>
-                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
-                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Critical Damping</p>
-                        <p class="text-xl font-extrabold text-slate-800">\\( C_c = ${window.fmt(cc)} \\)</p>
-                    </div>
-                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm ${badgeColor.replace('text-','text-opacity-80 text-')} border-opacity-50">
-                        <p class="text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Damping Ratio</p>
-                        <p class="text-xl font-extrabold">\\( \\zeta = ${window.fmt(zeta)} \\)</p>
-                    </div>
-                </div>
-                
-                <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                        🔍 View Calculation Steps for Holy Trinity
-                    </summary>
-                    <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                        <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                            <strong>💡 For Beginners: What are these?</strong><br>
-                            • <strong>Natural Freq (\(\omega_n\)):</strong> The system's natural "heartbeat" or how fast it wants to bounce.<br>
-                            • <strong>Critical Damping (\(C_c\)):</strong> The exact amount of friction brakes needed to stop the mass from bouncing entirely.<br>
-                            • <strong>Damping Ratio (\(\zeta\)):</strong> The percentage of those friction brakes we actually have.
-                        </div>
-                        <p class="math-block">\\( \\omega_n = \\sqrt{\\frac{K}{M}} = \\sqrt{\\frac{${window.fmt(k)}}{${window.fmt(m)}}} = \\mathbf{${window.fmt(wn)}} \\text{ rad/s} \\)</p>
-                        <p class="math-block">\\( C_c = 2\\sqrt{KM} = 2\\sqrt{${window.fmt(k)} \\times ${window.fmt(m)}} = \\mathbf{${window.fmt(cc)}} \\text{ Ns/m} \\)</p>
-                        <p class="math-block">\\( \\zeta = \\frac{C}{C_c} = \\frac{${window.fmt(c)}}{${window.fmt(cc)}} = \\mathbf{${window.fmt(zeta)}} \\)</p>
-                    </div>
-                </details>
-            </div>
-            
-            <div class="mb-8">
-                <h3 class="text-xl font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-slate-700">2. Governing Equations of Motion</h3>
-                ${extraVarsHtml}
-                <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-lg mb-4 space-y-3 shadow-sm">
-                    <div>
-                        <p class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">General Displacement Formula</p>
-                        <div class="math-block font-bold text-lg">\\( x(t) = ${genDispStr} \\)</div>
-                    </div>
-                    <div class="border-t border-indigo-200 pt-3">
-                        <p class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">General Velocity Formula (Derivative)</p>
-                        <div class="math-block font-bold text-lg">\\( v(t) = ${genVelStr} \\)</div>
-                    </div>
-                </div>
-                <p class="text-sm text-slate-600 italic">This is the general mathematical form for a <strong>${dampingType.toLowerCase()}</strong> ${window.isForced ? 'forced' : 'free'} vibration system. The remaining steps will solve for the unknown constants (A, B${window.isForced ? ', X, and \\(\\phi\\)' : ''}).</p>
-            </div>`;
-
-            let finalEquationStr = "";
-
-            if (!window.isForced) {
-                // =============== FREE VIBRATION ===============
-                html += `<div class="mb-8"><h3 class="text-xl font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">3. Applying Initial Conditions</h3>`;
-                
-                if (zeta === 0) {
-                    A = x0; B = v0 / wn;
-                    html += `
-                    <p class="math-block">\\( A = x_0 = \\mathbf{${window.fmt(A)}} \\)</p>
-                    <p class="math-block mb-4">\\( B = \\frac{v_0}{\\omega_n} = \\mathbf{${window.fmt(B)}} \\)</p>
-                    
-                    <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                        <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                            🔍 View Detailed Math for Constants A & B
-                        </summary>
-                        <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                            <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                                <strong>💡 For Beginners: Why do we do this?</strong><br>
-                                We have a generic equation, but we need to find the specific constants (A and B) for our exact starting conditions.<br>
-                                1. We plug in <strong>t = 0</strong> into the displacement equation to match our starting position (\\(x_0\\)).<br>
-                                2. To use our starting velocity (\\(v_0\\)), we must use calculus to find the <strong>derivative</strong> (the velocity equation), and then plug in <strong>t = 0</strong>.
-                            </div>
-                            <p class="text-slate-600 italic">Displacement equation at t=0:</p>
-                            <p class="math-block">\\( A = x_0 = \\mathbf{${window.fmt(A)}} \\)</p>
-                            <p class="text-slate-600 italic mt-4">Velocity equation at t=0:</p>
-                            <p class="math-block">\\( B\\omega_n = v_0 \\implies B = \\frac{${window.fmt(v0)}}{${window.fmt(wn)}} = \\mathbf{${window.fmt(B)}} \\)</p>
-                        </div>
-                    </details>`;
-                    finalEquationStr = `${window.fmt(A)} \\cos(${window.fmt(wn)} t) + ${window.fmt(B)} \\sin(${window.fmt(wn)} t)`;
-
-                } else if (zeta < 1) {
-                    A = x0; B = (v0 + decay * x0) / wd;
-                    
-                    html += `
-                    <p class="math-block">\\( A = x_0 = \\mathbf{${window.fmt(A)}} \\)</p>
-                    <p class="math-block mb-4">\\( B = \\frac{v_0 + \\zeta\\omega_n A}{\\omega_d} = \\mathbf{${window.fmt(B)}} \\)</p>
-                    
-                    <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                        <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                            🔍 View Detailed Math for Constants A & B
-                        </summary>
-                        <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                            <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                                <strong>💡 For Beginners: Why do we do this?</strong><br>
-                                We have a generic equation, but we need to find the specific constants (A and B) for our exact starting conditions.<br>
-                                1. We plug in <strong>t = 0</strong> into the displacement equation to match our starting position (\\(x_0\\)).<br>
-                                2. To use our starting velocity (\\(v_0\\)), we must use calculus to find the <strong>derivative</strong> (the velocity equation), and then plug in <strong>t = 0</strong>.
-                            </div>
-                            <p class="text-slate-600 italic">Finding the Damped Natural Frequency:</p>
-                            <p class="math-block">\\( \\omega_d = ${window.fmt(wn)}\\sqrt{1-(${window.fmt(zeta)})^2} = \\mathbf{${window.fmt(wd)}} \\)</p>
-                            <p class="text-slate-600 italic mt-4">Using Product Rule for Velocity: \\( v(0) = -\\zeta\\omega_n A + \\omega_d B = v_0 \\)</p>
-                            <p class="math-block">\\( B = \\frac{${window.fmt(v0)} + (${window.fmt(zeta)})(${window.fmt(wn)})(${window.fmt(A)})}{${window.fmt(wd)}} = \\frac{${window.fmt(v0)} + ${window.fmt(decay * A)}}{${window.fmt(wd)}} = \\mathbf{${window.fmt(B)}} \\)</p>
-                        </div>
-                    </details>`;
-                    finalEquationStr = `e^{-${window.fmt(decay)} t} \\left( ${window.fmt(A)} \\cos(${window.fmt(wd)} t) + ${window.fmt(B)} \\sin(${window.fmt(wd)} t) \\right)`;
-
-                } else if (Math.abs(zeta - 1) < 0.001) {
-                    A = x0; B = v0 + wn * x0;
-                    
-                    html += `
-                    <p class="math-block">\\( A = x_0 = \\mathbf{${window.fmt(A)}} \\)</p>
-                    <p class="math-block mb-4">\\( B = v_0 + \\omega_n A = \\mathbf{${window.fmt(B)}} \\)</p>
-                    
-                    <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                        <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                            🔍 View Detailed Math for Constants A & B
-                        </summary>
-                        <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                            <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                                <strong>💡 For Beginners: Why do we do this?</strong><br>
-                                We have a generic equation, but we need to find the specific constants (A and B) for our exact starting conditions.<br>
-                                1. We plug in <strong>t = 0</strong> into the displacement equation to match our starting position (\\(x_0\\)).<br>
-                                2. To use our starting velocity (\\(v_0\\)), we must use calculus to find the <strong>derivative</strong> (the velocity equation), and then plug in <strong>t = 0</strong>.
-                            </div>
-                            <p class="text-slate-600 italic">Derivative for Velocity: \\( v(0) = B - \\omega_n A = v_0 \\)</p>
-                            <p class="math-block">\\( B = ${window.fmt(v0)} + (${window.fmt(wn)})(${window.fmt(A)}) = \\mathbf{${window.fmt(B)}} \\)</p>
-                        </div>
-                    </details>`;
-                    finalEquationStr = `(${window.fmt(A)} + ${window.fmt(B)}t) e^{-${window.fmt(wn)} t}`;
-
-                } else {
-                    A = (v0 - s2*x0)/(s1 - s2); B = (s1*x0 - v0)/(s1 - s2);
-                    
-                    html += `
-                    <p class="math-block">\\( A = \\mathbf{${window.fmt(A)}} \\)</p>
-                    <p class="math-block mb-4">\\( B = \\mathbf{${window.fmt(B)}} \\)</p>
-                    
-                    <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                        <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                            🔍 View Detailed Math for Constants A & B
-                        </summary>
-                        <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                            <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                                <strong>💡 For Beginners: Why do we do this?</strong><br>
-                                We have a generic equation, but we need to find the specific constants (A and B) for our exact starting conditions.<br>
-                                1. We plug in <strong>t = 0</strong> into the displacement equation to match our starting position (\\(x_0\\)).<br>
-                                2. To use our starting velocity (\\(v_0\\)), we must use calculus to find the <strong>derivative</strong> (the velocity equation), and then plug in <strong>t = 0</strong>.
-                            </div>
-                            <p class="math-block">\\( A = \\frac{v_0 - s_2 x_0}{s_1 - s_2} = \\frac{${window.fmt(v0)} - (${window.fmt(s2)})(${window.fmt(x0)})}{${window.fmt(s1)} - (${window.fmt(s2)})} = \\mathbf{${window.fmt(A)}} \\)</p>
-                            <p class="math-block">\\( B = \\frac{s_1 x_0 - v_0}{s_1 - s_2} = \\frac{(${window.fmt(s1)})(${window.fmt(x0)}) - ${window.fmt(v0)}}{${window.fmt(s1)} - (${window.fmt(s2)})} = \\mathbf{${window.fmt(B)}} \\)</p>
-                        </div>
-                    </details>`;
-                    finalEquationStr = `${window.fmt(A)} e^{${window.fmt(s1)} t} + ${window.fmt(B)} e^{${window.fmt(s2)} t}`;
-                }
-                html += `</div>`;
-
-            } else {
-                // =============== FORCED VIBRATION ===============
-                const r = w / wn; const denom1 = 1 - Math.pow(r, 2); const denom2 = 2 * zeta * r;
-                const X0 = f0 / k; const mag = 1 / Math.sqrt(Math.pow(denom1, 2) + Math.pow(denom2, 2));
-                X = X0 * mag;
-                
-                rawPhi = Math.atan2(denom2, denom1);
-                if(rawPhi < 0) rawPhi += Math.PI; 
-                const phiDeg = rawPhi * 180 / Math.PI;
-
-                // Transmissibility & Max Calculations (Added per Q7 Request)
-                const vmax = w * X;
-                const TR = Math.sqrt((1 + Math.pow(denom2, 2)) / (Math.pow(denom1, 2) + Math.pow(denom2, 2)));
-                const FT = TR * f0;
-                
-                html += `<div class="mb-8">
-                    <h3 class="text-xl font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">3. Steady State Properties</h3>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div class="bg-white p-3 rounded shadow-sm border border-slate-100 text-center"><p class="text-xs text-slate-500 font-bold mb-1">Freq Ratio (r)</p><p class="font-mono">${window.fmt(r)}</p></div>
-                        <div class="bg-white p-3 rounded shadow-sm border border-slate-100 text-center"><p class="text-xs text-slate-500 font-bold mb-1">Static Disp (X₀)</p><p class="font-mono">${window.fmt(X0)} m</p></div>
-                        <div class="bg-indigo-50 p-3 rounded shadow-sm border border-indigo-100 text-center"><p class="text-xs text-indigo-700 font-bold mb-1">Amplitude (X)</p><p class="font-mono font-bold">${window.fmt(X)} m</p></div>
-                        <div class="bg-indigo-50 p-3 rounded shadow-sm border border-indigo-100 text-center"><p class="text-xs text-indigo-700 font-bold mb-1">Phase (φ)</p><p class="font-mono font-bold">${window.fmt(rawPhi)} rad <span class="block text-[10px] text-indigo-500 font-normal mt-0.5">(${window.fmt(phiDeg)}&deg;)</span></p></div>
-                    </div>`;
-
-                if(r > 1) html += `<div class="bg-red-50 text-red-700 p-3 rounded border border-red-200 text-sm mb-4"><strong>Phase Trap Triggered:</strong> \\( r > 1 \\), added \\( 180^\\circ \\) to phase angle!<br><span class="text-xs"><em>(Conversion: \\( \\text{Radians} = \\text{Degrees} \\times \\frac{\\pi}{180} \\))</em></span></div>`;
-
-                // Sub-section for Transmissibility & Forces (Q7 parameters)
-                html += `
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 mt-4">
-                        <div class="bg-amber-50 p-3 rounded shadow-sm border border-amber-100 text-center"><p class="text-xs text-amber-700 font-bold mb-1">Max Velocity (\\(V_{max}\\))</p><p class="font-mono font-bold">${window.fmt(vmax)} m/s</p></div>
-                        <div class="bg-amber-50 p-3 rounded shadow-sm border border-amber-100 text-center"><p class="text-xs text-amber-700 font-bold mb-1">Transmissibility (TR)</p><p class="font-mono font-bold">${window.fmt(TR)}</p></div>
-                        <div class="bg-amber-50 p-3 rounded shadow-sm border border-amber-100 text-center col-span-2 md:col-span-1"><p class="text-xs text-amber-700 font-bold mb-1">Max Transmitted Force</p><p class="font-mono font-bold">${window.fmt(FT)} N</p></div>
-                    </div>
-                `;
-
-                html += `<div class="bg-slate-50 border-l-4 border-slate-400 p-4 rounded-r-lg math-block mb-4">\\( x_p(t) = ${window.fmt(X)}\\sin(${window.fmt(w)}t - ${window.fmt(rawPhi)}) \\)</div>
-                
-                <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                        🔍 View Calculation Steps for Steady State Math
-                    </summary>
-                    <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                        <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                            <strong>💡 For Beginners: What do these mean?</strong><br>
-                            • <strong>Freq Ratio (\(r\)):</strong> Compares the motor's speed to the natural bounce speed. If \(r=1\), it's Resonance (pushing a child on a swing at the perfect time to make them go higher and higher!).<br>
-                            • <strong>Static Disp (\(X_0\)):</strong> How far the spring would compress if you just rested the motor's force on it without actually spinning.<br>
-                            • <strong>Phase Angle (\(\phi\)):</strong> The "delay" or "lag" between the motor pushing and the mass actually moving.
-                        </div>
-                        <p class="math-block">\\( r = \\frac{\\omega}{\\omega_n} = \\frac{${window.fmt(w)}}{${window.fmt(wn)}} = \\mathbf{${window.fmt(r)}} \\)</p>
-                        <p class="math-block">\\( X_0 = \\frac{F_0}{K} = \\frac{${window.fmt(f0)}}{${window.fmt(k)}} = \\mathbf{${window.fmt(X0)}} \\)</p>
-                        <p class="math-block">\\( X = \\frac{X_0}{\\sqrt{(1-r^2)^2 + (2\\zeta r)^2}} = \\frac{${window.fmt(X0)}}{\\sqrt{(1-${window.fmt(r)}^2)^2 + (2(${window.fmt(zeta)})(${window.fmt(r)}))^2}} = \\frac{${window.fmt(X0)}}{\\sqrt{(${window.fmt(denom1)})^2 + (${window.fmt(denom2)})^2}} = \\mathbf{${window.fmt(X)}} \\)</p>
-                        <p class="math-block">\\( \\phi = \\tan^{-1}\\left(\\frac{2\\zeta r}{1-r^2}\\right) = \\tan^{-1}\\left(\\frac{${window.fmt(denom2)}}{${window.fmt(denom1)}}\\right) = \\mathbf{${window.fmt(rawPhi)} \\text{ rad}} \\)</p>
-                        <hr class="my-2 border-slate-200">
-                        <p class="math-block">\\( TR = \\sqrt{\\frac{1 + (2\\zeta r)^2}{(1-r^2)^2 + (2\\zeta r)^2}} = \\mathbf{${window.fmt(TR)}} \\)</p>
-                        <p class="math-block">\\( F_T = TR \\times F_0 = ${window.fmt(TR)} \\times ${window.fmt(f0)} = \\mathbf{${window.fmt(FT)} \\text{ N}} \\)</p>
-                        <p class="math-block">\\( V_{max} = \\omega \\times X = ${window.fmt(w)} \\times ${window.fmt(X)} = \\mathbf{${window.fmt(vmax)} \\text{ m/s}} \\)</p>
-                    </div>
-                </details>
-                </div>`;
-
-                // Combine Transient and Apply ICs
-                html += `<div class="mb-8"><h3 class="text-xl font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">4. Transient Constants</h3>`;
-                
-                const x_steady_0 = X * Math.sin(-rawPhi);
-                const v_steady_0 = w * X * Math.cos(-rawPhi);
-                const C0 = x0 - x_steady_0; 
-                const C1 = v0 - v_steady_0; 
-
-                html += `
-                <p class="mb-4 text-sm text-slate-700">We must apply the initial conditions to the <strong>Complete Equation</strong> generated in Step 2.<br>
-                \\( x_{trans}(0) = x_0 - x_{ss}(0) = \\mathbf{${window.fmt(C0)}} \\)<br>
-                \\( v_{trans}(0) = v_0 - v_{ss}(0) = \\mathbf{${window.fmt(C1)}} \\)</p>`;
-
-                let transientStepHTML = "";
-                if (zeta === 0) {
-                    A = C0; B = C1 / wn;
-                    finalEquationStr = `${window.fmt(A)}\\cos(${window.fmt(wn)}t) + ${window.fmt(B)}\\sin(${window.fmt(wn)}t) + ${window.fmt(X)}\\sin(${window.fmt(w)}t - ${window.fmt(rawPhi)})`;
-                    transientStepHTML = `
-                        <p class="math-block">\\( A = x_{trans}(0) = \\mathbf{${window.fmt(A)}} \\)</p>
-                        <p class="math-block">\\( B = \\frac{v_{trans}(0)}{\\omega_n} = \\frac{${window.fmt(C1)}}{${window.fmt(wn)}} = \\mathbf{${window.fmt(B)}} \\)</p>
-                    `;
-                } else if (zeta < 1) {
-                    A = C0; B = (C1 + decay * A) / wd;
-                    finalEquationStr = `e^{-${window.fmt(decay)}t}\\left(${window.fmt(A)}\\cos(${window.fmt(wd)}t) + ${window.fmt(B)}\\sin(${window.fmt(wd)}t)\\right) + ${window.fmt(X)}\\sin(${window.fmt(w)}t - ${window.fmt(rawPhi)})`;
-                    transientStepHTML = `
-                        <p class="math-block">\\( A = x_{trans}(0) = \\mathbf{${window.fmt(A)}} \\)</p>
-                        <p class="math-block">\\( B = \\frac{v_{trans}(0) + \\zeta\\omega_n A}{\\omega_d} = \\frac{${window.fmt(C1)} + (${window.fmt(decay)})(${window.fmt(A)})}{${window.fmt(wd)}} = \\mathbf{${window.fmt(B)}} \\)</p>
-                    `;
-                } else if (Math.abs(zeta - 1) < 0.001) {
-                    A = C0; B = C1 + wn * A;
-                    finalEquationStr = `(${window.fmt(A)} + ${window.fmt(B)}t)e^{-${window.fmt(wn)}t} + ${window.fmt(X)}\\sin(${window.fmt(w)}t - ${window.fmt(rawPhi)})`;
-                    transientStepHTML = `
-                        <p class="math-block">\\( A = x_{trans}(0) = \\mathbf{${window.fmt(A)}} \\)</p>
-                        <p class="math-block">\\( B = v_{trans}(0) + \\omega_n A = ${window.fmt(C1)} + (${window.fmt(wn)})(${window.fmt(A)}) = \\mathbf{${window.fmt(B)}} \\)</p>
-                    `;
-                } else {
-                    A = (C1 - s2*C0)/(s1 - s2); B = (s1*C0 - C1)/(s1 - s2);
-                    finalEquationStr = `${window.fmt(A)}e^{${window.fmt(s1)}t} + ${window.fmt(B)}e^{${window.fmt(s2)}t} + ${window.fmt(X)}\\sin(${window.fmt(w)}t - ${window.fmt(rawPhi)})`;
-                    transientStepHTML = `
-                        <p class="math-block">\\( A = \\frac{v_{trans}(0) - s_2 x_{trans}(0)}{s_1 - s_2} = \\frac{${window.fmt(C1)} - (${window.fmt(s2)})(${window.fmt(C0)})}{${window.fmt(s1)} - (${window.fmt(s2)})} = \\mathbf{${window.fmt(A)}} \\)</p>
-                        <p class="math-block">\\( B = \\frac{s_1 x_{trans}(0) - v_{trans}(0)}{s_1 - s_2} = \\frac{(${window.fmt(s1)})(${window.fmt(C0)}) - ${window.fmt(C1)}}{${window.fmt(s1)} - (${window.fmt(s2)})} = \\mathbf{${window.fmt(B)}} \\)</p>
-                    `;
-                }
-                
-                html += `<div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="bg-white p-3 rounded shadow-sm border border-slate-200"><p class="text-sm font-bold text-slate-500 mb-1">Constant A</p><p class="font-mono text-lg font-bold">\\( ${window.fmt(A)} \\)</p></div>
-                    <div class="bg-white p-3 rounded shadow-sm border border-slate-200"><p class="text-sm font-bold text-slate-500 mb-1">Constant B</p><p class="font-mono text-lg font-bold">\\( ${window.fmt(B)} \\)</p></div>
-                </div>
-                
-                <details class="mt-4 group bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <summary class="cursor-pointer font-semibold text-sm text-slate-600 p-3 hover:bg-slate-50 transition-colors">
-                        🔍 View Calculation Steps for the Transient Gap & Constants
-                    </summary>
-                    <div class="p-4 border-t border-slate-100 bg-slate-50 text-sm space-y-3">
-                        <div class="mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 rounded text-xs leading-relaxed">
-                            <strong>💡 For Beginners: What is the "Gap"?</strong><br>
-                            The Steady-State wave assumes the motor has been running forever. At exactly \(t=0\), the steady wave expects the mass to be exactly at \(x_{ss}(0)\). But in reality, the mass is sitting at our initial condition \(x_0\).<br>
-                            The <strong>Transient Solution</strong> acts like a temporary bridge. It must perfectly cover the "gap" between where the mass actually starts and where the steady-state wave expects it to be!
-                        </div>
-                        <p class="text-slate-600 italic">1. Find where the steady-state equation physically is at t=0:</p>
-                        <p class="math-block">\\( x_{ss}(0) = X\\sin(-\\phi) = -X\\sin(\\phi) = -${window.fmt(X)}\\sin(${window.fmt(phiDeg)}^\\circ) = \\mathbf{${window.fmt(x_steady_0)}} \\)</p>
-                        <p class="math-block">\\( v_{ss}(0) = \\omega X\\cos(-\\phi) = \\omega X\\cos(\\phi) = ${window.fmt(w)}(${window.fmt(X)})\\cos(${window.fmt(phiDeg)}^\\circ) = \\mathbf{${window.fmt(v_steady_0)}} \\)</p>
-                        <p class="text-slate-600 italic mt-4">2. Calculate the "Gap" the transient solution must correct for:</p>
-                        <p class="math-block">\\( x_{trans}(0) = x_0 - x_{ss}(0) = ${window.fmt(x0)} - (${window.fmt(x_steady_0)}) = \\mathbf{${window.fmt(C0)}} \\)</p>
-                        <p class="math-block">\\( v_{trans}(0) = v_0 - v_{ss}(0) = ${window.fmt(v0)} - (${window.fmt(v_steady_0)}) = \\mathbf{${window.fmt(C1)}} \\)</p>
-                        <p class="text-slate-600 italic mt-4">3. Solve for Constants using the Transient Initial Conditions:</p>
-                        ${transientStepHTML}
-                    </div>
-                </details>
-                </div>`;
-            }
-
-            // SECTION: FINAL EQUATION & SAVE BUTTON
-            html += `
-            <div class="bg-gray-900 rounded-xl p-6 shadow-xl border border-gray-700 text-white">
-                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Final Complete Equation</h3>
-                <div class="math-block text-xl md:text-2xl font-bold mb-6">
-                    \\( x(t) = ${finalEquationStr} \\)
-                </div>
-                <button onclick="window.saveCalculation()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-200 flex justify-center items-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                    Save Calculation to Cloud
-                </button>
-            </div>`;
-
-            // Export parameters to the simulator & Cloud Payload
-            window.simData = {
-                isForced: window.isForced, zeta: zeta, wn: wn, wd: wd, s1: s1, s2: s2,
-                A: A, B: B, X: (window.isForced && !isNaN(X) ? X : 0), w: (window.isForced && !isNaN(w) ? w : 0), phi: (window.isForced && !isNaN(rawPhi) ? rawPhi : 0),
-                x0: x0, v0: v0
-            };
-
-            window.currentCalculationData = {
-                m: m, k: k, c: c, x0: x0, v0: v0,
-                isForced: window.isForced, f0: f0, w: w,
-                zeta: zeta, equation: finalEquationStr.replace(/\\/g, '\\\\') 
-            };
-
-            outputDiv.innerHTML = html;
-            if (window.MathJax) MathJax.typesetPromise([outputDiv]).catch(console.error);
-
-            // Trigger Animation
-            window.resetSimulation();
-        }
-
-        // --- SIMULATION ENGINE LOGIC ---
-        window.resetSimulation = () => {
-            window.simStartTime = performance.now();
-            window.simHistory = [];
-            if (!window.isSimulating) {
-                window.isSimulating = true;
-                requestAnimationFrame(window.simulationLoop);
-            }
-        }
-
-        window.evaluateX = (t) => {
-            if (!window.simData) return 0;
-            const d = window.simData;
-            let x_trans = 0;
-            if (d.zeta === 0) {
-                x_trans = d.A * Math.cos(d.wn * t) + d.B * Math.sin(d.wn * t);
-            } else if (d.zeta < 1) {
-                x_trans = Math.exp(-d.zeta * d.wn * t) * (d.A * Math.cos(d.wd * t) + d.B * Math.sin(d.wd * t));
-            } else if (Math.abs(d.zeta - 1) < 0.001) {
-                x_trans = (d.A + d.B * t) * Math.exp(-d.wn * t);
-            } else {
-                x_trans = d.A * Math.exp(d.s1 * t) + d.B * Math.exp(d.s2 * t);
-            }
-            let x_steady = d.isForced ? d.X * Math.sin(d.w * t - d.phi) : 0;
-            return x_trans + x_steady;
-        }
-
-        window.simulationLoop = (time) => {
-            if (!window.isSimulating || !window.simData) return;
-            const canvas = document.getElementById('sim-canvas');
-            if (!canvas) {
-                requestAnimationFrame(window.simulationLoop);
-                return;
-            }
-
-            const ctx = canvas.getContext('2d');
-            const t = (time - window.simStartTime) / 1000; 
-            
-            const currentX = window.evaluateX(t);
-            window.simHistory.push({ t, x: currentX });
-            if (window.simHistory.length > 600) window.simHistory.shift();
-
-            let maxAbsX = 0.0001; 
-            for (let pt of window.simHistory) {
-                if (Math.abs(pt.x) > maxAbsX) maxAbsX = Math.abs(pt.x);
-            }
-            if (Math.abs(window.simData.x0) > maxAbsX) maxAbsX = Math.abs(window.simData.x0);
-            if (window.simData.isForced && Math.abs(window.simData.X) * 1.5 > maxAbsX) maxAbsX = Math.abs(window.simData.X) * 1.5;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const graphLeft = 280;
-            const graphWidth = canvas.width - graphLeft - 20;
-            const graphCenterY = canvas.height / 2;
-
-            // --- DRAW GRAPH ---
-            ctx.strokeStyle = '#475569';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.moveTo(graphLeft, graphCenterY);
-            ctx.lineTo(graphLeft + graphWidth, graphCenterY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            ctx.strokeStyle = '#a855f7'; 
-            ctx.lineWidth = 2.5;
-            ctx.lineJoin = 'round';
-            ctx.beginPath();
-            
-            const timeWindow = 4; 
-            for (let i = 0; i < window.simHistory.length; i++) {
-                const pt = window.simHistory[i];
-                const timeDiff = t - pt.t;
-                if (timeDiff > timeWindow) continue;
-
-                const px = graphLeft + graphWidth - (timeDiff / timeWindow) * graphWidth;
-                const py = graphCenterY - (pt.x / maxAbsX) * (graphCenterY - 45); 
-
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
-
-            // --- DRAW PHYSICAL MODEL ---
-            const centerX = 140;
-            const massY = graphCenterY - (currentX / maxAbsX) * (graphCenterY - 45); 
-
-            if (window.simTheme === 'classic') {
-                ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(centerX + 45, massY);
-                ctx.lineTo(graphLeft, massY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                ctx.fillStyle = '#64748b';
-                ctx.fillRect(centerX - 60, 15, 120, 10);
-                
-                ctx.strokeStyle = '#94a3b8';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                for(let i = centerX - 60; i < centerX + 60; i += 10) {
-                    ctx.moveTo(i, 15);
-                    ctx.lineTo(i + 10, 5);
-                }
-                ctx.stroke();
-
-                const springX = centerX - 25;
-                ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 3;
-                ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(springX, 25);
-                
-                const numCoils = 10;
-                const springHeight = (massY - 20) - 25;
-                const coilStep = springHeight / numCoils;
-                for(let i = 1; i < numCoils; i++) {
-                    const offset = (i % 2 === 0) ? 12 : -12;
-                    ctx.lineTo(springX + offset, 25 + i * coilStep);
-                }
-                ctx.lineTo(springX, massY - 20);
-                ctx.stroke();
-
-                if (window.simData.zeta > 0) {
-                    const dampX = centerX + 25;
-                    const dampTop = 25;
-                    const dampBot = massY - 20;
-                    const dampH = dampBot - dampTop;
-
-                    ctx.strokeStyle = '#f59e0b';
-                    ctx.lineWidth = 3;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(dampX, dampTop);
-                    ctx.lineTo(dampX, dampTop + dampH * 0.45);
-                    ctx.moveTo(dampX - 12, dampTop + dampH * 0.45);
-                    ctx.lineTo(dampX + 12, dampTop + dampH * 0.45);
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(dampX, dampBot);
-                    ctx.lineTo(dampX, dampTop + dampH * 0.65);
-                    ctx.lineTo(dampX - 18, dampTop + dampH * 0.65);
-                    ctx.lineTo(dampX - 18, dampTop + dampH * 0.25);
-                    ctx.moveTo(dampX, dampTop + dampH * 0.65);
-                    ctx.lineTo(dampX + 18, dampTop + dampH * 0.65);
-                    ctx.lineTo(dampX + 18, dampTop + dampH * 0.25);
-                    ctx.stroke();
-                }
-
-                ctx.fillStyle = '#1e293b';
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetY = 4;
-                ctx.fillRect(centerX - 45, massY - 20, 90, 40);
-                ctx.shadowColor = 'transparent';
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 18px Inter';
-                ctx.textAlign = 'center';
-                ctx.fillText('M', centerX, massY + 6);
-
-                if (window.simData.isForced) {
-                    const forceVal = Math.sin(window.simData.w * t);
-                    const arrowLen = forceVal * 25;
-                    const arrowBase = massY + 20;
-
-                    if (Math.abs(arrowLen) > 2) {
-                        ctx.strokeStyle = '#ef4444';
-                        ctx.fillStyle = '#ef4444';
-                        ctx.lineWidth = 3;
-                        ctx.beginPath();
-                        ctx.moveTo(centerX, arrowBase);
-                        ctx.lineTo(centerX, arrowBase + arrowLen);
-                        ctx.stroke();
-
-                        ctx.beginPath();
-                        if (forceVal > 0) {
-                            ctx.moveTo(centerX, arrowBase + arrowLen + 4);
-                            ctx.lineTo(centerX - 6, arrowBase + arrowLen - 4);
-                            ctx.lineTo(centerX + 6, arrowBase + arrowLen - 4);
-                        } else {
-                            ctx.moveTo(centerX, arrowBase + arrowLen - 4);
-                            ctx.lineTo(centerX - 6, arrowBase + arrowLen + 4);
-                            ctx.lineTo(centerX + 6, arrowBase + arrowLen + 4);
-                        }
-                        ctx.fill();
-                    }
-                    ctx.fillStyle = '#ef4444';
-                    ctx.font = 'bold 12px Inter';
-                    ctx.textAlign = 'left';
-                    ctx.fillText('F(t)', centerX + 15, arrowBase + 15);
-                }
-
-            } else if (window.simTheme === 'building') {
-                const sway = (currentX / maxAbsX) * 45;
-                const groundY = 190;
-                const roofY = 70;
-                const colSpacing = 35;
-
-                ctx.fillStyle = '#64748b';
-                ctx.fillRect(centerX - 80, groundY, 160, 10);
-                
-                ctx.strokeStyle = '#94a3b8';
-                ctx.lineWidth = 6;
-                ctx.beginPath();
-                ctx.moveTo(centerX - colSpacing, groundY);
-                ctx.quadraticCurveTo(centerX - colSpacing, (groundY + roofY) / 2, centerX - colSpacing + sway, roofY);
-                ctx.moveTo(centerX + colSpacing, groundY);
-                ctx.quadraticCurveTo(centerX + colSpacing, (groundY + roofY) / 2, centerX + colSpacing + sway, roofY);
-                ctx.stroke();
-
-                ctx.fillStyle = '#1e293b';
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetY = 4;
-                ctx.fillRect(centerX - 55 + sway, roofY - 25, 110, 25);
-                ctx.shadowColor = 'transparent';
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 16px Inter';
-                ctx.textAlign = 'center';
-                ctx.fillText('Roof (M)', centerX + sway, roofY - 7);
-
-                ctx.fillStyle = '#cbd5e1';
-                ctx.font = 'italic 11px Inter';
-                ctx.fillText(`Sway = x(t)`, centerX, 30);
-
-            } else if (window.simTheme === 'car') {
-                const roadY = 190;
-                const wheelY = roadY - 18;
-                const carY = massY - 25;
-
-                ctx.fillStyle = '#64748b';
-                ctx.fillRect(centerX - 80, roadY, 160, 10);
-
-                ctx.fillStyle = '#334155';
-                ctx.beginPath();
-                ctx.arc(centerX, wheelY, 18, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#cbd5e1';
-                ctx.beginPath();
-                ctx.arc(centerX, wheelY, 6, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 3;
-                ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(centerX, wheelY - 18);
-                const springH = (carY + 10) - (wheelY - 18);
-                const numCoils = 5;
-                for(let i = 1; i < numCoils; i++) {
-                    const offset = (i % 2 === 0) ? 10 : -10;
-                    ctx.lineTo(centerX + offset, (wheelY - 18) + i * (springH / numCoils));
-                }
-                ctx.lineTo(centerX, carY + 10);
-                ctx.stroke();
-
-                ctx.fillStyle = '#ef4444';
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetY = 4;
-                ctx.fillRect(centerX - 60, carY, 120, 20); 
-                ctx.fillRect(centerX - 30, carY - 20, 75, 20); 
-                ctx.shadowColor = 'transparent';
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 16px Inter';
-                ctx.textAlign = 'center';
-                ctx.fillText('M', centerX, carY + 15);
-
-                ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(centerX + 60, carY + 10);
-                ctx.lineTo(graphLeft, carY + 10);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-
-            ctx.fillStyle = '#f8fafc';
-            ctx.font = '13px monospace';
-            ctx.textAlign = 'left'; 
-            
-            ctx.fillStyle = '#60a5fa'; 
-            ctx.fillText(`x(t) = ${currentX.toFixed(4)}m`, 20, canvas.height - 15);
-            
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText(`+${maxAbsX.toFixed(3)}`, graphLeft - 50, 40);
-            ctx.fillText(`0.000`, graphLeft - 45, graphCenterY + 4);
-            ctx.fillText(`-${maxAbsX.toFixed(3)}`, graphLeft - 50, canvas.height - 30);
-            ctx.fillText(`Time (t): ${t.toFixed(1)}s`, graphLeft + graphWidth - 110, canvas.height - 15);
-
-            requestAnimationFrame(window.simulationLoop);
-        }
-
-        // Init calculations after UI binds
-        setTimeout(() => window.updateCalculations(), 100);
-    </script>
-</body>
-</html>
+                        <select onchange="window.changeTheme(this.value)" class="bg-slate-800 text-slate-200 outline-none border border-slate-600 rounded px-2 py-1.5 text-xs font-semibold shadow-sm cursor-pointer hover:bg-slate-7
