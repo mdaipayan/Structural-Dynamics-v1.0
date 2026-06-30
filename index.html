@@ -656,7 +656,7 @@
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const pdfjsLib = window.pdfjsLib;
+                const pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
                 const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 let fullText = "";
 
@@ -681,27 +681,77 @@
             const cleanText = text.replace(/(\d),(\d)/g, '$1$2').toLowerCase();
             
             let m = null, k = null, cZeta = null, f0 = null, w = null;
+            let x0 = null, v0 = null;
             let foundAny = false;
 
-            // Regex Heuristics targeting problem structures (like Q7 and Q8)
-            const massMatch = cleanText.match(/(?:mass|m)\s*(?:is|of|=)?\s*([\d\.]+)\s*kg/);
+            // Mass / Weight
+            const massMatch = cleanText.match(/(?:mass|m)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*kg/);
             if (massMatch) { m = parseFloat(massMatch[1]); foundAny = true; }
+            
+            const weightMatch = cleanText.match(/(?:weight|w)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(kn|n)\b/);
+            if (weightMatch && !m) {
+                let weight = parseFloat(weightMatch[1]);
+                if (weightMatch[2] === 'kn') weight *= 1000;
+                m = window.fmt(weight / 9.81, 2); // Derive mass: W/g
+                foundAny = true;
+            }
 
-            const kMatch = cleanText.match(/(?:stiffness|k)\s*(?:is|of|=)?\s*([\d\.]+)\s*(?:n\/m|kn\/m)/);
+            // Stiffness / Spring Constant
+            const kMatch = cleanText.match(/(?:stiffness|spring constant|k)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(kn\/m|n\/m|n\/mm|kn\/cm|mn\/m)/);
             if (kMatch) { 
                 k = parseFloat(kMatch[1]);
-                if (kMatch[0].includes('kn/m')) k *= 1000;
+                if (kMatch[2] === 'kn/m' || kMatch[2] === 'n/mm') k *= 1000;
+                if (kMatch[2] === 'kn/cm') k *= 100000;
+                if (kMatch[2] === 'mn/m') k *= 1000000;
                 foundAny = true; 
             }
 
-            const dampMatch = cleanText.match(/(?:damping factor|damping ratio|zeta|c)\s*(?:is|of|=)?\s*([\d\.]+)/);
+            // Static Deflection (Alternative to K)
+            const dstMatch = cleanText.match(/(?:static deflection|deflection)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(m|mm|cm)\b/);
+            if (dstMatch && !k) {
+                let dst = parseFloat(dstMatch[1]);
+                if (dstMatch[2] === 'mm') dst /= 1000;
+                if (dstMatch[2] === 'cm') dst /= 100;
+                if (m) {
+                    k = window.fmt((m * 9.81) / dst, 2); // Derive stiffness: Mg / dst
+                    foundAny = true;
+                }
+            }
+
+            // Damping
+            const dampMatch = cleanText.match(/(?:damping factor|damping ratio|zeta|c)\s*(?:is|of|:|=)?\s*([\d\.]+)/);
             if (dampMatch) { cZeta = parseFloat(dampMatch[1]); foundAny = true; }
 
-            const forceMatch = cleanText.match(/(?:force|f)\s*(?:is|of|=)?\s*([\d\.]+)\s*(?:n|sin)/);
-            if (forceMatch) { f0 = parseFloat(forceMatch[1]); foundAny = true; }
+            // Force
+            const forceMatch = cleanText.match(/(?:force|f|f0|amplitude of)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(kn|n)\b/);
+            if (forceMatch) { 
+                f0 = parseFloat(forceMatch[1]); 
+                if (forceMatch[2] === 'kn') f0 *= 1000;
+                foundAny = true; 
+            }
 
-            const wMatch = cleanText.match(/sin\s*\(\s*([\d\.]+)\s*t\s*\)/);
-            if (wMatch) { w = parseFloat(wMatch[1]); foundAny = true; }
+            // Frequency
+            const wMatch1 = cleanText.match(/sin\s*\(\s*([\d\.]+)\s*t\s*\)/);
+            const wMatch2 = cleanText.match(/(?:frequency|omega|w|driving frequency)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*rad\/s/);
+            if (wMatch1) { w = parseFloat(wMatch1[1]); foundAny = true; }
+            else if (wMatch2) { w = parseFloat(wMatch2[1]); foundAny = true; }
+
+            // Initial Conditions
+            const x0Match = cleanText.match(/(?:initial displacement|displaced by|released from|moved down by|moved up by)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(m|mm|cm)\b/);
+            if (x0Match) {
+                x0 = parseFloat(x0Match[1]);
+                if (x0Match[2] === 'mm') x0 /= 1000;
+                if (x0Match[2] === 'cm') x0 /= 100;
+                foundAny = true;
+            }
+
+            const v0Match = cleanText.match(/(?:initial velocity|velocity of)\s*(?:is|of|:|=)?\s*([\d\.]+)\s*(m\/s|mm\/s|cm\/s)\b/);
+            if (v0Match) {
+                v0 = parseFloat(v0Match[1]);
+                if (v0Match[2] === 'mm/s') v0 /= 1000;
+                if (v0Match[2] === 'cm/s') v0 /= 100;
+                foundAny = true;
+            }
             
             const out = document.getElementById('pdf-extracted-data');
 
@@ -753,6 +803,14 @@
                             <span class="font-mono font-bold">${dampingDisplay}</span>
                         </div>
                         <div class="flex justify-between border-b border-blue-100 pb-1">
+                            <span class="text-slate-600 font-semibold">Initial Disp. (x₀):</span>
+                            <span class="font-mono font-bold">${x0 !== null ? x0 + ' m' : '<span class="text-slate-400 italic">0 (Assumed)</span>'}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-blue-100 pb-1">
+                            <span class="text-slate-600 font-semibold">Initial Vel. (v₀):</span>
+                            <span class="font-mono font-bold">${v0 !== null ? v0 + ' m/s' : '<span class="text-slate-400 italic">0 (Assumed)</span>'}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-blue-100 pb-1">
                             <span class="text-slate-600 font-semibold">System Type:</span>
                             <span class="font-bold px-2 py-0.5 rounded text-xs ${isForced ? 'bg-purple-200 text-purple-800' : 'bg-emerald-200 text-emerald-800'}">${isForced ? 'Forced Vibration' : 'Free Vibration'}</span>
                         </div>
@@ -769,7 +827,7 @@
                     </div>
                 </div>
                 
-                <button onclick="window.loadPDFToSolver(${m || "''"}, ${k || "''"}, ${finalC || "''"}, ${isForced}, ${f0 || "''"}, ${w || "''"})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition flex items-center justify-center">
+                <button onclick="window.loadPDFToSolver(${m || "''"}, ${k || "''"}, ${finalC || "''"}, ${isForced}, ${f0 || "''"}, ${w || "''"}, ${x0 !== null ? x0 : "''"}, ${v0 !== null ? v0 : "''"})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition flex items-center justify-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     Load Parameters to Solver
                 </button>
@@ -778,7 +836,7 @@
             out.innerHTML = html;
         };
 
-        window.loadPDFToSolver = (m, k, c, isForced, f0, w) => {
+        window.loadPDFToSolver = (m, k, c, isForced, f0, w, x0, v0) => {
             window.switchTab('solver');
             if (m !== '') document.getElementById('inp-m').value = m;
             if (k !== '') document.getElementById('inp-k').value = k;
@@ -792,8 +850,8 @@
                 window.setForceMode('free');
             }
             
-            document.getElementById('inp-x0').value = 0;
-            document.getElementById('inp-v0').value = 0;
+            document.getElementById('inp-x0').value = x0 !== '' ? x0 : 0;
+            document.getElementById('inp-v0').value = v0 !== '' ? v0 : 0;
             window.updateCalculations();
         };
 
