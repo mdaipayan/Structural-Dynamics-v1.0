@@ -1771,66 +1771,117 @@
             let s=[], k=1;
 
             s.push(manualStep(k++, [
-                `\\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=0 \\), non-trivial solution needs \\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\), let \\(\\lambda=\\omega^2\\)`
+                `Assume free vibration \\( \\{u\\}=\\{\\phi\\}\\sin\\omega t \\). Substituting into \\([M]\\ddot u+[K]u=0\\) gives \\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=0 \\)`
+            ], HEAD()));
+
+            s.push(manualStep(k++, [
+                `For a non-zero \\(\\{\\phi\\}\\), need \\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\). Let \\(\\lambda=\\omega^2\\) and write \\([K]-\\lambda[M]\\) with your numbers:`,
+                `\\( [K]-\\lambda[M]=${texMatMinusLambdaM(K,M)} \\)`
             ], HEAD()));
 
             if (n===2) {
                 const a=K[0][0],b=K[0][1],c=K[1][0],d=K[1][1];
                 const ma=M[0][0],mb=M[0][1],mc=M[1][0],md=M[1][1];
-                const A2 = ma*md - mb*mc;
-                const B1 = -(a*md + d*ma) + (b*mc + c*mb);
-                const C0 = (a*d - b*c);
-                const disc = B1*B1 - 4*A2*C0;
+
                 s.push(manualStep(k++, [
-                    `\\( (K_{11}-\\lambda M_{11})(K_{22}-\\lambda M_{22})-(K_{12}-\\lambda M_{12})(K_{21}-\\lambda M_{21})=0 \\)`,
-                    `Expand → \\( ${f2(A2)}\\lambda^2 ${B1<0?'':'+'}${f2(B1)}\\lambda ${C0<0?'':'+'}${f2(C0)}=0 \\)`
+                    `For a 2×2 matrix \\( \\begin{bmatrix}p&q\\\\r&s\\end{bmatrix} \\), the determinant is \\( ps-qr \\). Here:`,
+                    `\\( \\det=(${f2(a)}-\\lambda\\,${f2(ma)})(${f2(d)}-\\lambda\\,${f2(md)})-(${f2(b)}-\\lambda\\,${f2(mb)})(${f2(c)}-\\lambda\\,${f2(mc)})=0 \\)`
                 ], HEAD()));
+
+                const t1 = a*d, t2 = a*md, t3 = ma*d, t4 = ma*md;
                 s.push(manualStep(k++, [
-                    `Discriminant \\( =B^2-4AC=(${f2(B1)})^2-4(${f2(A2)})(${f2(C0)})=${f4(disc)} \\)`,
-                    `\\( \\lambda=\\dfrac{-B\\pm\\sqrt{disc}}{2A}=${f4(res.omega2[0])},\\ ${f4(res.omega2[1])} \\) → \\( \\omega=${f4(res.omega[0])},\\ ${f4(res.omega[1])} \\) rad/s`
+                    `Expand the first bracket-pair (FOIL): \\( (${f2(a)}-\\lambda\\,${f2(ma)})(${f2(d)}-\\lambda\\,${f2(md)}) \\)`,
+                    `\\( =${f2(t1)}-${f2(t2)}\\lambda-${f2(t3)}\\lambda+${f2(t4)}\\lambda^2=${f2(t4)}\\lambda^2-${f2(t2+t3)}\\lambda+${f2(t1)} \\)`
                 ], CALC()));
+
+                const offprod = b*c;
+                const offP2 = b*mc, offP3 = mb*c, offP4 = mb*mc;
+                const hasOffMass = (mb!==0 || mc!==0);
+                s.push(manualStep(k++, [
+                    `Second bracket-pair: \\( (${f2(b)}-\\lambda\\,${f2(mb)})(${f2(c)}-\\lambda\\,${f2(mc)}) \\)`,
+                    hasOffMass
+                        ? `\\( =${f2(offprod)}-${f2(offP2)}\\lambda-${f2(offP3)}\\lambda+${f2(offP4)}\\lambda^2=${f2(offP4)}\\lambda^2-${f2(offP2+offP3)}\\lambda+${f2(offprod)} \\)`
+                        : `\\( =${f2(offprod)} \\) &nbsp; (no λ term since \\(M_{12}=M_{21}=0\\) here)`
+                ], CALC()));
+
+                const A2 = ma*md - mb*mc;
+                const B1 = -(t2+t3) + (mb*c + mc*b);
+                const C0 = t1 - offprod;
+                s.push(manualStep(k++, [
+                    hasOffMass
+                        ? `Subtract: \\( \\det = \\big[${f2(t4)}\\lambda^2-${f2(t2+t3)}\\lambda+${f2(t1)}\\big]-\\big[${f2(offP4)}\\lambda^2-${f2(offP2+offP3)}\\lambda+${f2(offprod)}\\big]=0 \\)`
+                        : `Subtract: \\( \\det = \\big[${f2(t4)}\\lambda^2-${f2(t2+t3)}\\lambda+${f2(t1)}\\big]-\\big[${f2(offprod)}\\big]=0 \\)`,
+                    `\\( \\Rightarrow ${f2(A2)}\\lambda^2 ${B1<0?'':'+'}${f2(B1)}\\lambda ${C0<0?'':'+'}${f2(C0)}=0 \\) &nbsp; (this is \\(A\\lambda^2+B\\lambda+C=0\\))`
+                ], CALC()));
+
+                const disc = B1*B1 - 4*A2*C0;
+                const sq = Math.sqrt(disc);
+                s.push(manualStep(k++, [
+                    `Quadratic formula: \\( \\lambda=\\dfrac{-B\\pm\\sqrt{B^2-4AC}}{2A} \\), with \\(A=${f2(A2)},\\,B=${f2(B1)},\\,C=${f2(C0)}\\)`,
+                    `Discriminant \\( =B^2-4AC=(${f2(B1)})^2-4(${f2(A2)})(${f2(C0)})=${f2(B1*B1)}-${f2(4*A2*C0)}=${f4(disc)} \\)`,
+                    `\\( \\sqrt{${f4(disc)}}=${f4(sq)} \\)`
+                ], CALC()));
+
+                const lamPlus = (-B1+sq)/(2*A2), lamMinus = (-B1-sq)/(2*A2);
+                s.push(manualStep(k++, [
+                    `\\( \\lambda=\\dfrac{-(${f2(B1)})+${f4(sq)}}{2(${f2(A2)})}=\\dfrac{${f4(-B1+sq)}}{${f4(2*A2)}}=${f4(lamPlus)} \\) &nbsp; (+ branch)`,
+                    `\\( \\lambda=\\dfrac{-(${f2(B1)})-${f4(sq)}}{2(${f2(A2)})}=\\dfrac{${f4(-B1-sq)}}{${f4(2*A2)}}=${f4(lamMinus)} \\) &nbsp; (− branch)`,
+                    `Sorted: \\( \\lambda_1=${f4(res.omega2[0])} \\), \\( \\lambda_2=${f4(res.omega2[1])} \\) → \\( \\omega_1=\\sqrt{\\lambda_1}=${f4(res.omega[0])} \\), \\( \\omega_2=\\sqrt{\\lambda_2}=${f4(res.omega[1])} \\) rad/s`
+                ], CALC()));
+
                 s.push(manualStep(k++, [
                     `Check: \\( \\lambda_1+\\lambda_2=${f4(res.omega2[0]+res.omega2[1])} \\) should equal \\(-B/A=${f4(-B1/A2)}\\)`
                 ], CHECK()));
 
-                // fully worked back-substitution for BOTH modes (n=2 is small enough to show completely)
                 for (let mi=0; mi<2; mi++) {
                     const lam = res.omega2[mi];
                     const rc1 = a - lam*ma, rc2 = b - lam*mb;
                     const phi2 = Math.abs(rc2) > 1e-9 ? -rc1/rc2 : NaN;
                     s.push(manualStep(k++, [
-                        `Mode ${mi+1} (\\(\\lambda=${f4(lam)}\\)): row 1 → \\( (${f4(rc1)})\\phi_1+(${f4(rc2)})\\phi_2=0 \\), fix \\(\\phi_1=1\\)`,
-                        `\\( \\phi_2=-\\dfrac{${f4(rc1)}}{${f4(rc2)}}=${f4(phi2)} \\) → \\( \\{\\phi_${mi+1}\\}=\\{1,\\ ${f4(phi2)}\\}^T \\)`
+                        `<strong>Mode ${mi+1}</strong> (\\(\\lambda=${f4(lam)}\\)): substitute into row 1 of \\([K]-\\lambda[M]\\):`,
+                        `\\( K_{11}-\\lambda M_{11}=${f2(a)}-${f4(lam)}(${f2(ma)})=${f4(rc1)} \\), &nbsp; \\( K_{12}-\\lambda M_{12}=${f2(b)}-${f4(lam)}(${f2(mb)})=${f4(rc2)} \\)`,
+                        `Row 1 equation: \\( (${f4(rc1)})\\phi_1+(${f4(rc2)})\\phi_2=0 \\). Fix \\(\\phi_1=1\\) (matrix is singular — only ratios are determined):`,
+                        `\\( \\phi_2=-\\dfrac{${f4(rc1)}}{${f4(rc2)}}=${f4(phi2)} \\) &nbsp; → &nbsp; \\( \\{\\phi_${mi+1}\\}=\\{1,\\ ${f4(phi2)}\\}^T \\)`
                     ], CALC()));
                 }
             } else {
                 s.push(manualStep(k++, [
-                    `Cofactor-expand along row 1 → degree-${n} polynomial in λ (frequency equation)`
-                ], HEAD()));
+                    `Expanding a ${n}×${n} determinant by hand (cofactor expansion along row 1) gives a degree-${n} polynomial in λ — doable but long. This is the one place to lean on the calculator's polynomial/equation solver:`
+                ], HEAD() + CALC()));
                 s.push(manualStep(k++, [
-                    `Solve on calculator (equation mode, polynomial degree ${n}) → \\( \\lambda=${res.omega2.map(f3).join(",\\,")} \\)`,
-                    `→ \\( \\omega=${res.omega.map(f3).join(",\\,")} \\) rad/s`
-                ], CALC() + WARN("you form coefficients; calc only solves")));
+                    `Solve for λ (equation mode, polynomial degree ${n}) → \\( \\lambda=${res.omega2.map(f3).join(",\\,")} \\)`,
+                    `Take square roots → \\( \\omega=${res.omega.map(f3).join(",\\,")} \\) rad/s`
+                ], CALC() + WARN("you must form the polynomial coefficients yourself first")));
                 s.push(manualStep(k++, [
-                    `Check: sum of roots = trace of \\([M]^{-1}[K]\\)`
+                    `Check: sum of the λ's should equal the trace of \\([M]^{-1}[K]\\)`
                 ], CHECK()));
+
+                // fully worked back-substitution for mode 1 as a concrete example
+                const lam0 = res.omega2[0];
+                const rc1 = K[0][0]-lam0*M[0][0], rc2 = K[0][1]-lam0*M[0][1];
+                const phi2_0 = -rc1/rc2;
+                const rc21 = K[1][0], rc22 = K[1][1]-lam0*M[1][1], rc23 = K[1][2];
+                const phi3_0 = -(rc21*1 + rc22*phi2_0)/rc23;
                 s.push(manualStep(k++, [
-                    `For each λᵢ: fix \\(\\phi_1=1\\), use rows 1 and 2 of \\( ([K]-\\lambda_i[M])\\{\\phi\\}=0 \\) as 2 equations for \\(\\phi_2,\\phi_3\\) (row 3 is then automatically satisfied — matrix is singular)`
+                    `<strong>Worked example — Mode 1</strong> (\\(\\lambda=${f4(lam0)}\\)): fix \\(\\phi_1=1\\), use rows 1 &amp; 2 as two equations for \\(\\phi_2,\\phi_3\\) (row 3 is then automatically satisfied):`,
+                    `Row 1: \\( (K_{11}-\\lambda M_{11})(1)+(K_{12}-\\lambda M_{12})\\phi_2=0 \\) → \\( (${f4(rc1)})+(${f4(rc2)})\\phi_2=0 \\) → \\( \\phi_2=${f4(phi2_0)} \\)`,
+                    `Row 2: \\( K_{21}(1)+(K_{22}-\\lambda M_{22})\\phi_2+K_{23}\\phi_3=0 \\) → \\( (${f2(rc21)})+(${f4(rc22)})(${f4(phi2_0)})+(${f2(rc23)})\\phi_3=0 \\) → \\( \\phi_3=${f4(phi3_0)} \\)`,
+                    `\\( \\{\\phi_1\\}=\\{1,\\ ${f4(phi2_0)},\\ ${f4(phi3_0)}\\}^T \\), rescaled so the largest entry is 1: \\( \\{${res.modes[0].map(f3).join(",\\,")}\\}^T \\) — matches the table above`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `Repeat the same row-1/row-2 method at \\(\\lambda_2,\\lambda_3\\) for modes 2 and 3 (shown in the table above)`
                 ], HEAD()));
-                res.modes.forEach((md,i)=> s.push(manualStep(k++, [
-                    `\\( \\{\\phi_${i+1}\\}=\\{${md.map(f3).join(",\\,")}\\}^T \\)`
-                ], CALC())));
             }
 
             if (n>=2) {
                 const o = M.reduce((acc,row,r)=> acc + res.modes[0][r]*row.reduce((s2,mrc,cc)=>s2+mrc*res.modes[1][cc],0), 0);
                 s.push(manualStep(k++, [
-                    `\\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o,4)}\\approx 0 \\) ✓ (must use \\([M]\\), not a plain dot product)`
+                    `\\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o,4)}\\approx 0 \\) ✓ — must use \\([M]\\), not a plain dot product`
                 ], CHECK() + WARN("don't forget [M]")));
             }
 
             return `<div class="divide-y divide-slate-100">${s.join("")}</div>
-                <p class="text-xs text-slate-500 mt-3">🧠 set up & fix scale · 🧮 solve & back-substitute · ✓ check orthogonality</p>`;
+                <p class="text-xs text-slate-500 mt-3">🧠 set up & fix scale · 🧮 do the arithmetic · ✓ check · ⚠ common mistake</p>`;
         };
 
         // ============================================================
