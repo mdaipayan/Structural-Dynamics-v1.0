@@ -1538,8 +1538,7 @@
                 <div id="manual-panel" style="display:${window.showManual ? 'block' : 'none'}"
                     class="mt-3 bg-white border border-indigo-200 rounded-xl p-5">
                     <div class="flex flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100 text-xs">
-                        <span class="text-slate-500 font-semibold">Legend:</span>
-                        ${HEAD("think / set up")} ${CALC("crunch numbers")} ${CHECK("verify")}
+                        <span class="text-slate-600">🧠 hand &nbsp; 🧮 calculator &nbsp; ✓ check &nbsp; ⚠ common mistake</span>
                     </div>
                     ${window.buildManualSteps(manualCtx)}
                 </div>
@@ -1603,105 +1602,80 @@
         };
 
         // small helpers to render the calculator/reasoning tags
-        const CALC = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">🧮 Calculator${txt ? ': ' + txt : ''}</span>`;
-        const HEAD = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">🧠 By hand / reason${txt ? ': ' + txt : ''}</span>`;
-        const CHECK = (txt) => `<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">✓ Sanity check${txt ? ': ' + txt : ''}</span>`;
+        // Compact tags — icon-only, used inline at the end of a step line.
+        // Legend (shown once at the top of each panel) explains what they mean;
+        // individual steps stay terse so the whole thing is exam-usable.
+        const CALC = () => `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">🧮 calc</span>`;
+        const HEAD = () => `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 whitespace-nowrap">🧠 hand</span>`;
+        const CHECK = () => `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 whitespace-nowrap">✓ check</span>`;
+        const WARN = (txt) => `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 whitespace-nowrap">⚠ ${txt}</span>`;
 
-        // builds one step card
-        function manualStep(n, title, bodyHtml) {
-            return `<div class="border-l-4 border-slate-300 pl-4 py-2 mb-3">
-                <div class="font-bold text-slate-800 mb-1"><span class="text-slate-400">Step ${n}.</span> ${title}</div>
-                <div class="text-sm text-slate-700 space-y-1">${bodyHtml}</div></div>`;
+        // one compact line per step: number, formula+substitution+answer, tag(s) at right.
+        function manualStep(n, line, tags) {
+            return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0">
+                <span class="text-slate-400 font-bold text-sm shrink-0 w-5">${n}.</span>
+                <div class="flex-1 text-sm text-slate-800 leading-snug">${line}</div>
+                <div class="shrink-0 flex gap-1">${tags || ''}</div>
+            </div>`;
         }
 
         // MAIN: returns the full manual walkthrough for the current SDOF case.
         // ctx carries every value already computed upstream so nothing is recomputed.
+
         window.buildManualSteps = (ctx) => {
             const { m, k, c, f0, w, x0, v0, wn, cc, zeta, wd, dampingType, X, rawPhi, A, B } = ctx;
-            const f4 = (x) => window.fmt(x, 4);
             const f2 = (x) => window.fmt(x, 2);
-            let s = [];
-            let n = 1;
+            const f4 = (x) => window.fmt(x, 4);
+            let s = [], n = 1;
 
-            // --- Step: natural frequency ---
-            s.push(manualStep(n++, "Natural frequency \\( \\omega_n = \\sqrt{k/m} \\)", `
-                <p>Substitute the numbers: \\( \\omega_n = \\sqrt{${f2(k)}/${f2(m)}} = \\sqrt{${f4(k/m)}} = ${f4(wn)} \\) rad/s.</p>
-                <p>${HEAD("set up the ratio k/m yourself")} — getting k and m in the right place is the conceptual part.</p>
-                <p>${CALC("only for the square root")} The division and √ are pure number-crunching; do them on the calculator. Keep 3–4 significant figures.</p>
-                <p>${CHECK("units")} k/m has units (N/m)/(kg) = 1/s², so its root is in rad/s. If your answer isn't a per-second quantity, a value was mis-entered.</p>`));
+            s.push(manualStep(n++,
+                `\\( \\omega_n=\\sqrt{k/m}=\\sqrt{${f2(k)}/${f2(m)}}=${f4(wn)} \\) rad/s`,
+                CALC()));
 
-            // --- Step: critical damping & ratio ---
-            s.push(manualStep(n++, "Critical damping \\( c_c \\) and damping ratio \\( \\zeta \\)", `
-                <p>\\( c_c = 2\\sqrt{km} = 2\\sqrt{${f2(k)}\\times${f2(m)}} = ${f4(cc)} \\) Ns/m, &nbsp; \\( \\zeta = c/c_c = ${f2(c)}/${f4(cc)} = ${f4(zeta)} \\).</p>
-                <p>${HEAD("decide which regime ζ puts you in")} This is the most important judgement on the whole problem — it decides the entire form of the solution:</p>
-                <ul class="list-disc ml-6 text-xs">
-                    <li>\\( \\zeta = 0 \\) → undamped (pure oscillation)</li>
-                    <li>\\( 0 < \\zeta < 1 \\) → underdamped (decaying oscillation)</li>
-                    <li>\\( \\zeta = 1 \\) → critically damped (fastest non-oscillatory return)</li>
-                    <li>\\( \\zeta > 1 \\) → overdamped (two real decays, no oscillation)</li>
-                </ul>
-                <p>${CALC("the two square roots and the final division")} ${CHECK("ζ is dimensionless")} If ζ came out with units, c and c_c aren't in compatible units.</p>
-                <p class="text-slate-600">Here ζ = ${f4(zeta)} → <strong>${dampingType}</strong>.</p>`));
+            s.push(manualStep(n++,
+                `\\( c_c=2\\sqrt{km}=${f4(cc)} \\), \\( \\zeta=c/c_c=${f4(zeta)} \\) → <strong>${dampingType}</strong>`,
+                CALC()));
 
-            // --- Step: roots / damped frequency, regime-specific ---
             if (zeta === 0) {
-                s.push(manualStep(n++, "Roots of the characteristic equation", `
-                    <p>With no damping the roots are purely imaginary: \\( s = \\pm i\\omega_n = \\pm ${f4(wn)}\\,i \\).</p>
-                    <p>${HEAD("recognise that imaginary roots ⇒ sustained sine/cosine")} no decay term appears.</p>
-                    <p>${CALC("nothing new here")} — ω_n is already known from Step 1.</p>`));
+                s.push(manualStep(n++, `Roots: \\( s=\\pm${f4(wn)}j \\) — no decay, pure oscillation.`, HEAD()));
             } else if (zeta < 1) {
-                s.push(manualStep(n++, "Damped natural frequency \\( \\omega_d \\)", `
-                    <p>\\( \\omega_d = \\omega_n\\sqrt{1-\\zeta^2} = ${f4(wn)}\\sqrt{1-${f4(zeta)}^2} = ${f4(wd)} \\) rad/s.</p>
-                    <p>${HEAD("understand WHY ω_d < ω_n")} damping slows the oscillation slightly. This is a concept question favourite.</p>
-                    <p>${CALC("the 1−ζ² and its root")} ${CHECK("ω_d must be slightly less than ω_n")} — here ${f4(wd)} < ${f4(wn)}. If ω_d came out larger, you used the wrong formula.</p>`));
+                s.push(manualStep(n++,
+                    `\\( \\omega_d=\\omega_n\\sqrt{1-\\zeta^2}=${f4(wd)} \\) rad/s`,
+                    CALC()));
             } else if (Math.abs(zeta - 1) < 0.001) {
-                s.push(manualStep(n++, "Repeated root (critical damping)", `
-                    <p>\\( s = -\\omega_n = -${f4(wn)} \\) (a repeated real root).</p>
-                    <p>${HEAD("remember the solution form changes")} a repeated root gives \\( (A+Bt)e^{-\\omega_n t} \\), the t-multiplied term is the thing students forget.</p>`));
+                s.push(manualStep(n++,
+                    `Repeated root \\( s=-\\omega_n=${f4(-wn)} \\) → use \\( (A+Bt)e^{st} \\), not plain exponential.`,
+                    HEAD()));
             } else {
                 const s1v = -zeta*wn + wn*Math.sqrt(zeta*zeta-1);
                 const s2v = -zeta*wn - wn*Math.sqrt(zeta*zeta-1);
-                s.push(manualStep(n++, "Two real roots (overdamped)", `
-                    <p>\\( s_{1,2} = -\\zeta\\omega_n \\pm \\omega_n\\sqrt{\\zeta^2-1} = ${f4(s1v)},\\ ${f4(s2v)} \\).</p>
-                    <p>${HEAD("note both roots are negative real ⇒ no oscillation")} just two decaying exponentials.</p>
-                    <p>${CALC("the ζ²−1 root and the two combinations")} ${CHECK("both roots negative")} a positive root would mean the system blows up, which is physically wrong for a passive system.</p>`));
+                s.push(manualStep(n++,
+                    `\\( s_{1,2}=-\\zeta\\omega_n\\pm\\omega_n\\sqrt{\\zeta^2-1}=${f4(s1v)},\\ ${f4(s2v)} \\) (both real, negative)`,
+                    CALC()));
             }
 
-            // --- Forced branch ---
             if (window.isForced) {
                 const r = w/wn;
-                s.push(manualStep(n++, "Frequency ratio and steady-state amplitude", `
-                    <p>\\( r = \\omega/\\omega_n = ${f2(w)}/${f4(wn)} = ${f4(r)} \\).</p>
-                    <p>\\( X = \\dfrac{F_0/k}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}} = ${f4(X)} \\) m.</p>
-                    <p>${HEAD("build the denominator carefully")} the single most common mistake is dropping the square on \\((1-r^2)\\). Write the bracket, THEN square it.</p>
-                    <p>${CALC("the whole denominator and final division")} this is genuinely calculator territory — but enter it in stages: compute \\((1-r^2)^2\\) and \\((2\\zeta r)^2\\) separately, add, then √. Don't try it in one keystroke chain.</p>
-                    <p>${CHECK("near resonance")} if \\( r \\approx 1 \\), X should approach \\( F_0/(k\\cdot 2\\zeta) \\) = ${zeta>0?f4(f0/(k*2*zeta)):'∞'} m. ${r>0.8&&r<1.2?'You are near resonance, so compare against this.':'You are away from resonance, so X should be modest.'}</p>`));
+                s.push(manualStep(n++,
+                    `\\( r=\\omega/\\omega_n=${f4(r)} \\); \\( X=\\dfrac{F_0/k}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${f4(X)} \\) m`,
+                    CALC() + WARN("square (1−r²)")));
 
                 const phiDeg = rawPhi*180/Math.PI;
-                s.push(manualStep(n++, "Phase angle \\( \\phi \\)", `
-                    <p>\\( \\phi = \\tan^{-1}\\!\\dfrac{2\\zeta r}{1-r^2} = ${f2(phiDeg)}^\\circ \\).</p>
-                    <p>${HEAD("watch the quadrant when r > 1")} once \\( r>1 \\), \\(1-r^2\\) is negative and the phase passes 90°. A plain \\(\\tan^{-1}\\) gives the wrong quadrant — add 180° (or use atan2). ${r>1?'<strong>Here r > 1, so this correction applies.</strong>':'Here r < 1, so the plain inverse-tangent is fine.'}</p>
-                    <p>${CALC("the inverse tangent")} ${CHECK("φ between 0° and 180°")} phase for a driven SDOF always lies in that range; a negative result means you skipped the quadrant fix.</p>`));
+                s.push(manualStep(n++,
+                    `\\( \\phi=\\tan^{-1}\\!\\dfrac{2\\zeta r}{1-r^2}=${f2(phiDeg)}^\\circ \\)`,
+                    CALC() + (r>1 ? WARN("r>1 → +180°") : '')));
             }
 
-            // --- Constants from initial conditions ---
-            s.push(manualStep(n++, "Constants A and B from initial conditions", `
-                <p>Apply \\( x(0)=${x0} \\) and \\( \\dot{x}(0)=${v0} \\) to the general solution${window.isForced?' (after subtracting the steady-state part at t = 0)':''}.</p>
-                <p>Result: \\( A = ${f4(A)} \\), \\( B = ${f4(B)} \\).</p>
-                <p>${HEAD("this is algebra, not arithmetic")} set x(0) first (kills the sine term, gives A directly), then differentiate and set ẋ(0) for B. Do this symbolically before you put numbers in.</p>
-                <p>${CALC("only the final substitution")} once the symbolic expressions for A and B are written, plug numbers in at the very end.</p>
-                <p>${CHECK("t = 0 test")} substitute t = 0 back into your final x(t): it must return exactly x₀ = ${x0}. This one check catches most sign slips.</p>`));
+            s.push(manualStep(n++,
+                `A, B from \\(x_0=${x0}\\), \\(v_0=${v0}\\): \\( A=${f4(A)} \\), \\( B=${f4(B)} \\)`,
+                HEAD() + CALC()));
 
-            // --- Closing guidance ---
-            const closing = `<div class="bg-slate-100 rounded-lg p-3 text-sm mt-2">
-                <p class="font-bold text-slate-800 mb-1">Rule of thumb — when to reach for the calculator</p>
-                <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
-                    <li>${HEAD("")} choosing formulas, deciding the damping regime, setting up A/B, and every quadrant/units/sanity judgement — these are where marks are won and lost.</li>
-                    <li>${CALC("")} square roots, the amplitude denominator, inverse-tangent, and the final numeric substitution — mechanical steps where the calculator is faster and more reliable.</li>
-                    <li><strong>Never</strong> let the calculator decide the <em>form</em> of the answer. It gives numbers; you supply the physics.</li>
-                </ul></div>`;
+            s.push(manualStep(n++,
+                `Check: substitute \\(t=0\\) back into \\(x(t)\\) → must equal \\(x_0=${x0}\\)`,
+                CHECK()));
 
-            return s.join("") + closing;
+            return `<div class="divide-y divide-slate-100">${s.join("")}</div>
+                <p class="text-xs text-slate-500 mt-3">🧠 decide the regime/setup · 🧮 do the arithmetic · ✓ verify at t=0 · ⚠ common slip</p>`;
         };
 
         // ============================================================
@@ -1725,96 +1699,6 @@
             const f = fmt || ((x)=>window.fmt(x,2));
             return "\\begin{bmatrix}" + A.map(r => r.map(f).join(" & ")).join("\\\\") + "\\end{bmatrix}";
         }
-
-        window.buildMDOFManual = (M, K, n, res) => {
-            const f2=(x)=>window.fmt(x,2), f3=(x)=>window.fmt(x,3), f4=(x)=>window.fmt(x,4);
-            // reuse the same tag pills defined for SDOF (CALC/HEAD/CHECK)
-            const step = (k,title,body)=>`<div class="border-l-4 border-slate-300 pl-4 py-2 mb-3">
-                <div class="font-bold text-slate-800 mb-1"><span class="text-slate-400">Step ${k}.</span> ${title}</div>
-                <div class="text-sm text-slate-700 space-y-1">${body}</div></div>`;
-            let s=[], k=1;
-
-            // Step 1 — write the matrices and the eigenproblem
-            s.push(step(k++, "Write the eigenvalue problem", `
-                <p>Free undamped vibration assumes every mass moves harmonically at one frequency, \\(\\{u\\}=\\{\\phi\\}\\sin\\omega t\\). Substituting into \\([M]\\ddot u+[K]u=0\\) and cancelling \\(\\sin\\omega t\\) gives</p>
-                <p class="math-block">\\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=\\{0\\} \\)</p>
-                <p>with \\([M]=${texMat(M)}\\), \\([K]=${texMat(K)}\\).</p>
-                <p>${HEAD("understand why this is an eigenproblem")} you are looking for shapes \\(\\{\\phi\\}\\) the structure can sustain on its own. This setup is the whole concept — get it right and the rest is procedure.</p>`));
-
-            // Step 2 — non-trivial solution => determinant zero
-            s.push(step(k++, "Set the determinant to zero", `
-                <p>A non-zero shape \\(\\{\\phi\\}\\neq 0\\) exists only if the matrix is singular:</p>
-                <p class="math-block">\\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\)</p>
-                <p>${HEAD("this is the key logical step")} students often try to 'solve' \\(([K]-\\omega^2[M])\\phi=0\\) directly — but that only gives \\(\\phi=0\\) unless the determinant vanishes. The determinant condition is what produces the frequencies.</p>
-                <p>Let \\(\\lambda=\\omega^2\\). Form \\([K]-\\lambda[M]\\) symbolically (keep \\(\\lambda\\) as an unknown):</p>
-                <p class="math-block">\\( [K]-\\lambda[M]=${texMatMinusLambdaM(K,M)} \\)</p>
-                <p>${HEAD("do this substitution by hand")} ${CALC("not yet")} — there is nothing to compute here, only to set up. Reaching for the calculator now is premature.</p>`));
-
-            // Step 3 — expand determinant to characteristic polynomial
-            if (n===2) {
-                const a=K[0][0],b=K[0][1],c=K[1][0],d=K[1][1];
-                const ma=M[0][0],mb=M[0][1],mc=M[1][0],md=M[1][1];
-                // det = (a-λma)(d-λmd) - (b-λmb)(c-λmc)  -> Aλ^2 + Bλ + C
-                const A2 = ma*md - mb*mc;
-                const B1 = -(a*md + d*ma) + (b*mc + c*mb);
-                const C0 = (a*d - b*c);
-                s.push(step(k++, "Expand the 2×2 determinant → quadratic in λ", `
-                    <p>For a 2×2, \\(\\det=(K_{11}-\\lambda M_{11})(K_{22}-\\lambda M_{22})-(K_{12}-\\lambda M_{12})(K_{21}-\\lambda M_{21})\\).</p>
-                    <p>Collecting powers of \\(\\lambda\\) gives the characteristic equation</p>
-                    <p class="math-block">\\( ${f2(A2)}\\,\\lambda^2 ${B1<0?'':'+'} ${f2(B1)}\\,\\lambda ${C0<0?'':'+'} ${f2(C0)} = 0 \\)</p>
-                    <p>${HEAD("expand the brackets carefully")} this is algebra — the sign on the cross term is the usual slip. Multiply out fully before collecting terms.</p>
-                    <p>${CALC("only to multiply the coefficient numbers")} keep \\(\\lambda\\) symbolic; the calculator just helps with the arithmetic of each coefficient.</p>`));
-
-                // Step 4 — solve quadratic
-                const disc=B1*B1-4*A2*C0;
-                s.push(step(k++, "Solve the quadratic for λ = ω²", `
-                    <p>Quadratic formula: \\( \\lambda=\\dfrac{-B\\pm\\sqrt{B^2-4AC}}{2A} \\) with \\(A=${f2(A2)},\\,B=${f2(B1)},\\,C=${f2(C0)}\\).</p>
-                    <p>Discriminant \\(B^2-4AC=${f2(disc)}\\) → \\(\\lambda_1=${f4(res.omega2[0])},\\ \\lambda_2=${f4(res.omega2[1])}\\).</p>
-                    <p>Then \\(\\omega=\\sqrt{\\lambda}\\): \\(\\omega_1=${f4(res.omega[0])},\\ \\omega_2=${f4(res.omega[1])}\\) rad/s.</p>
-                    <p>${CALC("yes — this is calculator territory")} the discriminant, its square root, and the two roots are pure number-crunching. On a Casio fx-991, the quadratic mode or the equation solver does this directly.</p>
-                    <p>${CHECK("sum & product of roots")} \\(\\lambda_1+\\lambda_2\\) should equal \\(-B/A=${f4(-B1/A2)}\\) and \\(\\lambda_1\\lambda_2=C/A=${f4(C0/A2)}\\). If they don't match, a coefficient is wrong — and this check catches it before you waste time on mode shapes.</p>`));
-            } else {
-                s.push(step(k++, "Expand the determinant → characteristic polynomial", `
-                    <p>Expanding \\(\\det([K]-\\lambda[M])=0\\) by cofactors along the first row gives a degree-${n} polynomial in \\(\\lambda=\\omega^2\\) (the <em>frequency equation</em>). Its ${n} roots are the squared natural frequencies.</p>
-                    <p>The roots for this system are:</p>
-                    <p class="math-block">\\( \\lambda_i=\\omega_i^2: \\ ${res.omega2.map(f3).join(",\\ ")} \\)</p>
-                    <p>so \\( \\omega_i = ${res.omega.map(f3).join(",\\ ")} \\) rad/s.</p>
-                    <p>${HEAD("set up the cofactor expansion yourself")} the structure of the determinant is the conceptual part — which minors multiply which entries, and the alternating signs.</p>
-                    <p>${CALC("for the cubic roots — this is where it earns its place")} a 3×3 hand-expansion to a cubic is doable, but solving the cubic by hand is error-prone. Use the polynomial/equation solver (Casio fx-991: <em>Mode → Equation → Polynomial degree ${n}</em>). ${HEAD("but you must still form the coefficients correctly first")} — the calculator solves the cubic, it cannot tell you that your cubic is right.</p>
-                    <p>${CHECK("trace & determinant")} the sum of the roots equals the trace of \\([M]^{-1}[K]\\), and the product equals its determinant. Verify at least one before trusting the roots.</p>`));
-            }
-
-            // Step — back-substitute for mode shapes
-            s.push(step(k++, "Find each mode shape by back-substitution", `
-                <p>For each \\(\\lambda_i\\), put it back into \\(([K]-\\lambda_i[M])\\{\\phi\\}=0\\) and solve for the <em>shape</em> (ratios, not absolute values).</p>
-                <p>${HEAD("this is the step most often misunderstood")} the matrix is now singular, so the equations are dependent — you cannot get unique numbers, only ratios. Fix one component (say \\(\\phi_1=1\\)) and solve the others relative to it. That is not a trick; it reflects that a mode shape has arbitrary scale.</p>
-                <p>The resulting shapes (here normalized so the largest entry = 1):</p>
-                ${res.modes.map((md,i)=>`<p class="math-block">\\( \\{\\phi_${i+1}\\}=\\{${md.map(f3).join(",\\ ")}\\}^T \\)</p>`).join("")}
-                <p>${CALC("only the per-row division once a component is fixed")} ${HEAD("but decide WHICH component to fix and read off the signs yourself")} — the sign pattern (where the shape crosses zero) is the physics: mode 1 has no sign change, higher modes have nodes.</p>`));
-
-            // Step — orthogonality check
-            if (n>=2) {
-                const o = (i,j)=> M.reduce((acc,row,r)=> acc + res.modes[i][r]*row.reduce((s2,mrc,cc)=>s2+mrc*res.modes[j][cc],0), 0);
-                const o12 = o(0,1);
-                s.push(step(k++, "Verify mass-orthogonality (your built-in check)", `
-                    <p>Distinct modes are orthogonal <em>through the mass matrix</em>: \\( \\{\\phi_i\\}^T[M]\\{\\phi_j\\}=0 \\) for \\(i\\neq j\\).</p>
-                    <p>Check modes 1 and 2: \\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o12,4)} \\approx 0 \\). ✓</p>
-                    <p>${HEAD("this is the single best check on the whole problem")} if it is not ≈ 0, either a mode shape is wrong or — very commonly — you used \\(\\{\\phi_i\\}^T\\{\\phi_j\\}\\) (plain dot product) and forgot the \\([M]\\). Orthogonality is with respect to mass, not the bare vectors.</p>
-                    <p>${CALC("the matrix-vector multiply")} ${CHECK("must be ≈ 0")} a small non-zero value (like ${window.fmt(o12,4)}) is just rounding; a large one means an error upstream.</p>`));
-            }
-
-            const closing = `<div class="bg-slate-100 rounded-lg p-3 text-sm mt-2">
-                <p class="font-bold text-slate-800 mb-1">Where the calculator helps — and where it doesn't</p>
-                <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
-                    <li>${HEAD("")} forming \\([K]-\\lambda[M]\\), expanding the determinant, deciding to fix a component, reading sign patterns, and choosing the orthogonality check — the understanding lives here.</li>
-                    <li>${CALC("")} solving the quadratic/cubic for \\(\\lambda\\), the square roots for \\(\\omega\\), and the matrix multiplies in the checks — let the calculator do these.</li>
-                    <li><strong>The trap:</strong> a calculator's matrix mode can compute \\([M]^{-1}[K]\\) and even its eigenvalues, but if you let it do everything you learn nothing and can't catch a wrong matrix. Use it to <em>finish</em> steps you understand, not to <em>skip</em> them.</li>
-                </ul></div>`;
-
-            return s.join("") + closing;
-        };
-
-        // helper: render [K] - λ[M] as a bmatrix with λ terms
         function texMatMinusLambdaM(K, M) {
             const cell = (kij, mij) => {
                 const kp = window.fmt(kij,2);
@@ -1825,6 +1709,60 @@
             };
             return "\\begin{bmatrix}" + K.map((row,i)=>row.map((kij,j)=>cell(kij,M[i][j])).join(" & ")).join("\\\\") + "\\end{bmatrix}";
         }
+
+        window.buildMDOFManual = (M, K, n, res) => {
+            const f2=(x)=>window.fmt(x,2), f3=(x)=>window.fmt(x,3), f4=(x)=>window.fmt(x,4);
+            let s=[], k=1;
+
+            s.push(manualStep(k++,
+                `\\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=0 \\) → need \\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\), \\(\\lambda=\\omega^2\\)`,
+                HEAD()));
+
+            if (n===2) {
+                const a=K[0][0],b=K[0][1],c=K[1][0],d=K[1][1];
+                const ma=M[0][0],mb=M[0][1],mc=M[1][0],md=M[1][1];
+                const A2 = ma*md - mb*mc;
+                const B1 = -(a*md + d*ma) + (b*mc + c*mb);
+                const C0 = (a*d - b*c);
+                s.push(manualStep(k++,
+                    `Expand det: \\( ${f2(A2)}\\lambda^2 ${B1<0?'':'+'}${f2(B1)}\\lambda ${C0<0?'':'+'}${f2(C0)}=0 \\)`,
+                    HEAD()));
+                s.push(manualStep(k++,
+                    `Quadratic formula → \\( \\lambda_1=${f4(res.omega2[0])},\\ \\lambda_2=${f4(res.omega2[1])} \\) → \\( \\omega_1=${f4(res.omega[0])},\\ \\omega_2=${f4(res.omega[1])} \\) rad/s`,
+                    CALC()));
+                s.push(manualStep(k++,
+                    `Check: \\( \\lambda_1+\\lambda_2=${f4(res.omega2[0]+res.omega2[1])} \\) should equal \\(-B/A=${f4(-B1/A2)}\\)`,
+                    CHECK()));
+            } else {
+                s.push(manualStep(k++,
+                    `Cofactor-expand to a degree-${n} polynomial in λ (frequency equation)`,
+                    HEAD()));
+                s.push(manualStep(k++,
+                    `Solve polynomial (calculator: equation mode, degree ${n}) → \\( \\lambda=${res.omega2.map(f3).join(",\\,")} \\) → \\( \\omega=${res.omega.map(f3).join(",\\,")} \\) rad/s`,
+                    CALC() + WARN("you form coeffs, calc solves")));
+                s.push(manualStep(k++,
+                    `Check: sum of roots = trace of \\([M]^{-1}[K]\\)`,
+                    CHECK()));
+            }
+
+            s.push(manualStep(k++,
+                `For each λᵢ, solve \\( ([K]-\\lambda_i[M])\\{\\phi\\}=0 \\), fix \\(\\phi_1=1\\), solve the rest (ratios only — matrix is singular)`,
+                HEAD()));
+
+            res.modes.forEach((md,i)=> s.push(manualStep(k++,
+                `\\( \\{\\phi_${i+1}\\}=\\{${md.map(f3).join(",\\,")}\\}^T \\)`,
+                CALC())));
+
+            if (n>=2) {
+                const o = M.reduce((acc,row,r)=> acc + res.modes[0][r]*row.reduce((s2,mrc,cc)=>s2+mrc*res.modes[1][cc],0), 0);
+                s.push(manualStep(k++,
+                    `Orthogonality: \\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o,4)}\\approx 0 \\) — must use \\([M]\\), not a plain dot product`,
+                    CHECK() + WARN("don't forget [M]")));
+            }
+
+            return `<div class="divide-y divide-slate-100">${s.join("")}</div>
+                <p class="text-xs text-slate-500 mt-3">🧠 set up & fix scale · 🧮 solve the polynomial · ✓ check orthogonality</p>`;
+        };
 
         // ============================================================
         // ======  MDOF TIME-RESPONSE MANUAL WALKTHROUGH  =============
@@ -1845,22 +1783,15 @@
 
         window.buildMDOFRespManual = (M, C, K, Ft, u0, v0, dt, method, res, n) => {
             const f3=(x)=>window.fmt(x,3), f4=(x)=>window.fmt(x,4), f6=(x)=>window.fmt(x,6);
-            const step=(k,title,body)=>`<div class="border-l-4 border-slate-300 pl-4 py-2 mb-3">
-                <div class="font-bold text-slate-800 mb-1"><span class="text-slate-400">Step ${k}.</span> ${title}</div>
-                <div class="text-sm text-slate-700 space-y-1">${body}</div></div>`;
             let s=[], k=1;
 
-            // initial acceleration -- common to Newmark and Central Difference
             const F0 = Ft(0);
             const rhs0 = F0.map((f,i)=> f - C[i].reduce((acc,c,j)=>acc+c*v0[j],0) - K[i].reduce((acc,kk,j)=>acc+kk*u0[j],0));
             const a0 = LA.solve(M, rhs0);
 
-            s.push(step(k++, "Find the initial acceleration \\(\\{a_0\\}\\)", `
-                <p>Every direct-integration method starts from Newton's law at \\(t=0\\): \\( [M]\\{a_0\\}=\\{F_0\\}-[C]\\{v_0\\}-[K]\\{u_0\\} \\).</p>
-                <p>With \\(\\{F_0\\}=\\{${F0.map(f3).join(",\\,")}\\}\\), \\(\\{u_0\\}=\\{${u0.map(f3).join(",\\,")}\\}\\), \\(\\{v_0\\}=\\{${v0.map(f3).join(",\\,")}\\}\\):</p>
-                <p class="math-block">\\( \\{a_0\\}=\\{${a0.map(f4).join(",\\,")}\\}^T \\)</p>
-                <p>${HEAD("set up the right-hand side yourself")} this is just Newton's second law rearranged — make sure F, C·v, K·u all use consistent signs before you solve.</p>
-                <p>${CALC("solving [M]{a₀}={...} for a₀")} a linear solve — for a diagonal lumped-mass matrix this is just dividing each row by its mass; for a full matrix, use the calculator's matrix/equation mode.</p>`));
+            s.push(manualStep(k++,
+                `\\( [M]\\{a_0\\}=\\{F_0\\}-[C]\\{v_0\\}-[K]\\{u_0\\} \\) → \\( \\{a_0\\}=\\{${a0.map(f4).join(",\\,")}\\}^T \\)`,
+                CALC()));
 
             if (method === 'newmark') {
                 const beta=0.25, gamma=0.5;
@@ -1871,93 +1802,68 @@
                 const F1 = Ft(dt);
                 const Feff = F1.map((f,i)=>f+LA.matvec(M,rM)[i]+LA.matvec(C,rC)[i]);
                 const u1 = LA.solve(Keff, Feff);
-                const a1 = u1.map((ui,i)=>c1*(ui-u0[i])-c3*v0[i]-c4*a0[i]);
-                const v1 = v0.map((vi,i)=>vi+dt*((1-gamma)*a0[i]+gamma*a1[i]));
 
-                s.push(step(k++, "Form the Newmark-β effective stiffness (average-acceleration, β=¼, γ=½)", `
-                    <p>The trick that turns an implicit method into a one-shot linear solve at each step is folding the unknown acceleration and velocity into an <em>effective</em> stiffness:</p>
-                    <p class="math-block">\\( [K]_{eff}=[K]+\\dfrac{1}{\\beta \\Delta t^2}[M]+\\dfrac{\\gamma}{\\beta \\Delta t}[C] \\)</p>
-                    <p>With \\(\\Delta t=${f6(dt)}\\): \\( c_1=\\frac{1}{\\beta\\Delta t^2}=${f4(c1)} \\), \\( c_2=\\frac{\\gamma}{\\beta\\Delta t}=${f4(c2)} \\).</p>
-                    <p>${HEAD("understand WHY this works")} Newmark assumes acceleration varies linearly (γ) or is constant-average (β=¼) within the step; substituting those assumptions into the equation of motion is what produces these constants. You don't need to re-derive c₁..c₆ each time — but you should know where they come from once.</p>
-                    <p>${CALC("computing [K]_eff numerically and the constants c₁..c₆")} pure arithmetic once β, γ, Δt are chosen.</p>`));
-
-                s.push(step(k++, "Compute the effective load and solve for \\(\\{u_1\\}\\) — ONE step, fully by hand", `
-                    <p>\\( \\{F\\}_{eff}=\\{F_1\\}+[M]\\big(c_1\\{u_0\\}+c_3\\{v_0\\}+c_4\\{a_0\\}\\big)+[C]\\big(c_2\\{u_0\\}+c_5\\{v_0\\}+c_6\\{a_0\\}\\big) \\)</p>
-                    <p>Solve \\( [K]_{eff}\\{u_1\\}=\\{F\\}_{eff}\\):</p>
-                    <p class="math-block">\\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t=${f6(dt)}\\) s</p>
-                    <p>Then update: \\( \\{a_1\\}=\\{${a1.map(f4).join(",\\,")}\\}^T \\), \\( \\{v_1\\}=\\{${v1.map(f4).join(",\\,")}\\}^T \\).</p>
-                    <p>${HEAD("do this ONE step by hand at least once")} it's the only way the recursion stops being a mystery. Everything after step 1 repeats this exact same arithmetic with updated u, v, a.</p>
-                    <p>${CALC("the matrix solve for u₁, and every step after")} this is precisely why direct integration is a <em>computer</em> method — solving an n×n system hundreds of times by hand is not the point of the exercise. ${HEAD("but you must understand and be able to reproduce step 1")} an exam will ask for one or two steps, never the full ${'{N}'}-step history.</p>`));
-
-                s.push(step(k++, "Hand off the repetition — and know when to stop trusting it blindly", `
-                    <p>Steps 2, 3, …, N use the identical formulas with \\((u_1,v_1,a_1)\\to(u_2,v_2,a_2)\\), etc. This is a spreadsheet or short program from here, not hand arithmetic.</p>
-                    <p>${CHECK("Newmark (β=¼, γ=½) is unconditionally stable")} — any Δt gives a bounded numerical solution, but a too-large Δt still gives an <em>inaccurate</em> one. Rule of thumb: \\( \\Delta t \\lesssim T_n/10 \\) where \\(T_n=2\\pi/\\omega_{max}\\). Here \\(\\omega_{max}=${f3(Math.max(...res.omega))}\\) rad/s → \\(T_n=${f4(2*Math.PI/Math.max(...res.omega))}\\) s, so \\(\\Delta t\\) should be well under \\(${f4(2*Math.PI/Math.max(...res.omega)/10)}\\) s for accuracy (stability is not the constraint here).</p>`));
+                s.push(manualStep(k++,
+                    `\\( [K]_{eff}=[K]+c_1[M]+c_2[C] \\), \\(c_1=${f4(c1)}\\), \\(c_2=${f4(c2)}\\) (β=¼, γ=½)`,
+                    CALC()));
+                s.push(manualStep(k++,
+                    `Solve \\( [K]_{eff}\\{u_1\\}={F}_{eff} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\) — <strong>this one step only</strong>`,
+                    CALC() + HEAD()));
+                s.push(manualStep(k++,
+                    `Repeat the same formula for steps 2…N — use a computer/spreadsheet, not hand arithmetic`,
+                    HEAD()));
+                s.push(manualStep(k++,
+                    `Accuracy: keep \\( \\Delta t \\lesssim T_n/10 = ${f4(2*Math.PI/Math.max(...res.omega)/10)} \\) s (Newmark β=¼,γ=½ is unconditionally <em>stable</em>, but still needs small Δt for <em>accuracy</em>)`,
+                    CHECK()));
 
             } else if (method === 'central') {
-                const Mi = M, Ci = C, Ki = K;
                 const uPrev = u0.map((ui,i)=> ui - dt*v0[i] + 0.5*dt*dt*a0[i]);
                 const Keff = LA.addM(LA.scale(M,1/(dt*dt)), LA.scale(C,1/(2*dt)));
                 const Acoef = LA.addM(LA.scale(M,1/(dt*dt)), LA.scale(C,-1/(2*dt)));
                 const Bcoef = LA.addM(K, LA.scale(M,-2/(dt*dt)));
-                const F0b = Ft(0);
-                const rhs = F0b.map((f,i)=> f - LA.matvec(Acoef,uPrev)[i] - LA.matvec(Bcoef,u0)[i]);
+                const rhs = F0.map((f,i)=> f - LA.matvec(Acoef,uPrev)[i] - LA.matvec(Bcoef,u0)[i]);
                 const u1 = LA.solve(Keff, rhs);
                 const wmax = Math.max(...res.omega);
                 const dtcrit = 2/wmax;
+                const stable = dt <= dtcrit;
 
-                s.push(step(k++, "Generate the fictitious previous point \\(\\{u_{-1}\\}\\)", `
-                    <p>Central difference needs a point <em>before</em> \\(t=0\\) to start its central (symmetric) formula. Use the Taylor expansion backward:</p>
-                    <p class="math-block">\\( \\{u_{-1}\\}=\\{u_0\\}-\\Delta t\\{v_0\\}+\\dfrac{\\Delta t^2}{2}\\{a_0\\} \\;=\\;\\{${uPrev.map(f6).join(",\\,")}\\}^T \\)</p>
-                    <p>${HEAD("this is the one conceptually new piece versus Newmark")} central difference is explicit and symmetric in time, so it needs information from both sides of the current point — that's the price of being explicit.</p>
-                    <p>${CALC("the arithmetic substitution")} once \\(a_0\\) is known (Step 1), this is direct.</p>`));
+                s.push(manualStep(k++,
+                    `\\( \\{u_{-1}\\}=\\{u_0\\}-\\Delta t\\{v_0\\}+\\tfrac{\\Delta t^2}{2}\\{a_0\\}=\\{${uPrev.map(f6).join(",\\,")}\\}^T \\)`,
+                    CALC()));
+                s.push(manualStep(k++,
+                    `Solve \\( [\\hat M]\\{u_1\\}=\\{...\\} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\) — <strong>this one step only</strong>`,
+                    CALC() + HEAD()));
+                s.push(manualStep(k++,
+                    `<strong>STABILITY (check first!):</strong> \\( \\Delta t\\le 2/\\omega_{max}=${f6(dtcrit)} \\) s; used \\(\\Delta t=${f6(dt)}\\) s → ${stable?'<span class="text-emerald-600 font-bold">stable ✓</span>':'<span class="text-red-600 font-bold">UNSTABLE ✗</span>'}`,
+                    CHECK() + (stable?'':WARN("reduce Δt"))));
+                s.push(manualStep(k++,
+                    `Repeat the same formula for steps 2…N — use a computer/spreadsheet, not hand arithmetic`,
+                    HEAD()));
 
-                s.push(step(k++, "ONE step by hand: solve for \\(\\{u_1\\}\\)", `
-                    <p>Effective mass: \\( [\\hat M]=\\dfrac{1}{\\Delta t^2}[M]+\\dfrac{1}{2\\Delta t}[C] \\). With \\(\\Delta t=${f6(dt)}\\) s this is purely numeric — ${CALC("")} territory.</p>
-                    <p>Solve \\( [\\hat M]\\{u_1\\}=\\{F_0\\}-\\Big(\\frac{1}{\\Delta t^2}[M]-\\frac{1}{2\\Delta t}[C]\\Big)\\{u_{-1}\\}-\\Big([K]-\\frac{2}{\\Delta t^2}[M]\\Big)\\{u_0\\} \\):</p>
-                    <p class="math-block">\\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\)</p>
-                    <p>${HEAD("notice no acceleration or velocity appears explicitly")} central difference solves directly for the next <em>displacement</em>; velocity/acceleration are recovered afterward by differencing if needed. That's a structural difference from Newmark worth remembering for exam identification questions.</p>`));
-
-                s.push(step(k++, "Stability — the step that MUST be checked by hand before trusting any output", `
-                    <p>Central difference is only <strong>conditionally stable</strong>: \\( \\Delta t \\le \\Delta t_{cr}=\\dfrac{2}{\\omega_{max}} \\).</p>
-                    <p>Here \\(\\omega_{max}=${f3(wmax)}\\) rad/s → \\(\\Delta t_{cr}=${f6(dtcrit)}\\) s. The solver used \\(\\Delta t=${f6(dt)}\\) s, which is ${dt<=dtcrit? 'within' : 'OUTSIDE'} the stable range.</p>
-                    <p>${HEAD("check this BEFORE you trust any central-difference output")} ${CHECK("Δt < Δt_cr")} — if this fails, the numbers the computer/calculator hands back are meaningless (the solution blows up), no matter how carefully steps 1–2 were done. This is the one judgement a calculator cannot make for you — it will happily compute a diverging sequence without complaint.</p>
-                    <p>${CALC("after stability is confirmed")} every subsequent step is identical arithmetic — let a spreadsheet or the app's solver carry it from here.</p>`));
-
-            } else { // modal superposition
+            } else { // modal
                 const Phi = res.modes.map(md=>{
                     const mm = M.reduce((acc,row,r)=>acc+md[r]*row.reduce((s2,mrc,cc)=>s2+mrc*md[cc],0),0);
                     const sc = 1/Math.sqrt(mm); return md.map(v=>v*sc);
                 });
                 const q0 = Phi.map(ph=>LA.matvec(M,u0).reduce((acc,v,i)=>acc+v*ph[i],0));
-                const qd0 = Phi.map(ph=>LA.matvec(M,v0).reduce((acc,v,i)=>acc+v*ph[i],0));
                 const p0 = Phi.map(ph=>F0.reduce((acc,f,i)=>acc+f*ph[i],0));
 
-                s.push(step(k++, "Mass-normalize the mode shapes", `
-                    <p>Scale each mode so \\( \\{\\phi_i\\}^T[M]\\{\\phi_i\\}=1 \\) (rather than the 'largest entry = 1' normalization shown in the mode-shape tables).</p>
-                    <p>${HEAD("understand why this particular scaling")} it's what makes the decoupled modal mass exactly 1 for every mode, so the modal equations all look like a textbook unit-mass SDOF — that simplification is the entire payoff of modal analysis.</p>
-                    <p>${CALC("the matrix-vector products and the square root")} mechanical once the mode shapes are known.</p>`));
-
-                s.push(step(k++, "Decompose into modal coordinates — N independent SDOF problems", `
-                    <p>Modal force, modal initial displacement, modal initial velocity for each mode r: \\( p_r=\\{\\phi_r\\}^T\\{F\\} \\), \\( q_{r,0}=\\{\\phi_r\\}^T[M]\\{u_0\\} \\), \\( \\dot q_{r,0}=\\{\\phi_r\\}^T[M]\\{v_0\\} \\).</p>
-                    <p>At \\(t=0\\): \\( \\{p_0\\}=\\{${p0.map(f3).join(",\\,")}\\} \\), \\( \\{q_0\\}=\\{${q0.map(f4).join(",\\,")}\\} \\), \\( \\{\\dot q_0\\}=\\{${qd0.map(f4).join(",\\,")}\\} \\).</p>
-                    <p>${HEAD("recognize the punchline")} each modal coordinate \\(q_r(t)\\) now satisfies \\( \\ddot q_r+2\\zeta_r\\omega_r\\dot q_r+\\omega_r^2 q_r=p_r(t) \\) — <strong>this is exactly the SDOF equation from the SDOF tab</strong>, one per mode, completely decoupled. Solve mode 1 by hand using the same Duhamel/characteristic-equation method you already know; that's worth doing once for real understanding.</p>
-                    <p>${CALC("the projections Φᵀ M u₀ etc., and then solving each modal SDOF (same formulas as the SDOF solver)")}.</p>`));
-
-                s.push(step(k++, "Recombine and hand off the iteration", `
-                    <p>Physical response: \\( \\{u(t)\\}=\\sum_r q_r(t)\\{\\phi_r\\} \\).</p>
-                    <p>${HEAD("only the FIRST mode usually needs hand-checking")} higher modes typically contribute less to the total response (for smooth/slow loading) — sanity-check the dominant mode by hand, then trust the solver for the rest and the summation.</p>
-                    <p>${CALC("evaluating every q_r(t) at each time point and summing")} this is where you let the app/computer carry the work — it's the same SDOF formula repeated N times per time step, not new material.</p>`));
+                s.push(manualStep(k++,
+                    `Mass-normalize modes so \\( \\{\\phi_i\\}^T[M]\\{\\phi_i\\}=1 \\)`,
+                    CALC()));
+                s.push(manualStep(k++,
+                    `Project: \\( p_r=\\{\\phi_r\\}^T\\{F\\}=\\{${p0.map(f3).join(",\\,")}\\} \\), \\( q_{r,0}=\\{\\phi_r\\}^T[M]\\{u_0\\}=\\{${q0.map(f4).join(",\\,")}\\} \\)`,
+                    CALC()));
+                s.push(manualStep(k++,
+                    `Each mode now solves as \\( \\ddot q_r+2\\zeta_r\\omega_r\\dot q_r+\\omega_r^2 q_r=p_r(t) \\) — <strong>same SDOF equation as the SDOF tab</strong>, one per mode`,
+                    HEAD()));
+                s.push(manualStep(k++,
+                    `Recombine: \\( \\{u(t)\\}=\\sum_r q_r(t)\\{\\phi_r\\} \\) — let the computer sum all modes at each time point`,
+                    CALC() + HEAD()));
             }
 
-            const closing = `<div class="bg-slate-100 rounded-lg p-3 text-sm mt-2">
-                <p class="font-bold text-slate-800 mb-1">The pattern across all three methods</p>
-                <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
-                    <li>${HEAD("")} the initial acceleration, the effective-stiffness/mass setup, and (for Central Difference) the stability check are conceptual judgements you make once, by hand.</li>
-                    <li>${CALC("")} the matrix solve at each step is mechanical — compute step 1 by hand to prove you understand it, then let a computer iterate hundreds of identical steps. That repetition is what computers are for.</li>
-                    <li><strong>Exam reality:</strong> you will be asked to hand-compute 1–2 steps and to judge stability/accuracy — never to run the full time history by hand.</li>
-                </ul></div>`;
-
-            return s.join("") + closing;
+            return `<div class="divide-y divide-slate-100">${s.join("")}</div>
+                <p class="text-xs text-slate-500 mt-3">🧠 set up once, compute step 1 by hand · 🧮 then let a computer iterate · ✓ always check stability/accuracy first</p>`;
         };
 
 
@@ -2124,8 +2030,7 @@
             <div id="mdof-manual-panel" style="display:${window.showMDOFManual ? 'block' : 'none'}"
               class="mt-3 bg-white border border-indigo-200 rounded-xl p-5">
               <div class="flex flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100 text-xs">
-                <span class="text-slate-500 font-semibold">Legend:</span>
-                ${HEAD("think / set up")} ${CALC("crunch numbers")} ${CHECK("verify")}
+                <span class="text-slate-600">🧠 hand &nbsp; 🧮 calculator &nbsp; ✓ check &nbsp; ⚠ common mistake</span>
               </div>
               ${window.buildMDOFManual(M, K, n, res)}
             </div>
@@ -2174,8 +2079,7 @@
                 <div id="resp-manual-panel" style="display:${window.showRespManual ? 'block' : 'none'}"
                   class="mt-3 bg-white border border-indigo-200 rounded-xl p-5">
                   <div class="flex flex-wrap gap-2 mb-4 pb-3 border-b border-slate-100 text-xs">
-                    <span class="text-slate-500 font-semibold">Legend:</span>
-                    ${HEAD("think / set up")} ${CALC("crunch numbers")} ${CHECK("verify")}
+                    <span class="text-slate-600">🧠 hand &nbsp; 🧮 calculator &nbsp; ✓ check &nbsp; ⚠ common mistake</span>
                   </div>
                   ${window.buildMDOFRespManual(M, C, K, Ft, u0, v0, dt, method, res, n)}
                 </div>
