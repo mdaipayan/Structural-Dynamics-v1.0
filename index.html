@@ -1611,11 +1611,15 @@
         const WARN = (txt) => `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 whitespace-nowrap">⚠ ${txt}</span>`;
 
         // one compact line per step: number, formula+substitution+answer, tag(s) at right.
-        function manualStep(n, line, tags) {
-            return `<div class="flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0">
+        // n = step number, lines = string OR array of short math-only lines
+        // (each line is one piece of working — no explanatory sentences), tags = badge html.
+        function manualStep(n, lines, tags) {
+            const arr = Array.isArray(lines) ? lines : [lines];
+            const body = arr.map(l => `<div class="leading-relaxed">${l}</div>`).join('');
+            return `<div class="flex items-start gap-2 py-2 border-b border-slate-100 last:border-0">
                 <span class="text-slate-400 font-bold text-sm shrink-0 w-5">${n}.</span>
-                <div class="flex-1 text-sm text-slate-800 leading-snug">${line}</div>
-                <div class="shrink-0 flex gap-1">${tags || ''}</div>
+                <div class="flex-1 text-sm text-slate-800 space-y-0.5">${body}</div>
+                <div class="shrink-0 flex gap-1 mt-0.5">${tags || ''}</div>
             </div>`;
         }
 
@@ -1628,54 +1632,89 @@
             const f4 = (x) => window.fmt(x, 4);
             let s = [], n = 1;
 
-            s.push(manualStep(n++,
-                `\\( \\omega_n=\\sqrt{k/m}=\\sqrt{${f2(k)}/${f2(m)}}=${f4(wn)} \\) rad/s`,
-                CALC()));
+            s.push(manualStep(n++, [
+                `\\( \\omega_n=\\sqrt{k/m}=\\sqrt{${f2(k)}/${f2(m)}}=\\sqrt{${f4(k/m)}}=${f4(wn)} \\) rad/s`
+            ], CALC()));
 
-            s.push(manualStep(n++,
-                `\\( c_c=2\\sqrt{km}=${f4(cc)} \\), \\( \\zeta=c/c_c=${f4(zeta)} \\) → <strong>${dampingType}</strong>`,
-                CALC()));
+            s.push(manualStep(n++, [
+                `\\( c_c=2\\sqrt{km}=2\\sqrt{${f2(k)}\\times${f2(m)}}=${f4(cc)} \\) Ns/m`,
+                `\\( \\zeta=c/c_c=${f2(c)}/${f4(cc)}=${f4(zeta)} \\) → <strong>${dampingType}</strong>`
+            ], CALC()));
 
             if (zeta === 0) {
-                s.push(manualStep(n++, `Roots: \\( s=\\pm${f4(wn)}j \\) — no decay, pure oscillation.`, HEAD()));
+                s.push(manualStep(n++, [`Roots \\( s=\\pm\\omega_n j=\\pm${f4(wn)}j \\) — no decay, pure oscillation`], HEAD()));
             } else if (zeta < 1) {
-                s.push(manualStep(n++,
-                    `\\( \\omega_d=\\omega_n\\sqrt{1-\\zeta^2}=${f4(wd)} \\) rad/s`,
-                    CALC()));
+                s.push(manualStep(n++, [
+                    `\\( \\omega_d=\\omega_n\\sqrt{1-\\zeta^2}=${f4(wn)}\\sqrt{1-${f4(zeta)}^2}=${f4(wn)}\\times${f4(Math.sqrt(1-zeta*zeta))}=${f4(wd)} \\) rad/s`
+                ], CALC()));
             } else if (Math.abs(zeta - 1) < 0.001) {
-                s.push(manualStep(n++,
-                    `Repeated root \\( s=-\\omega_n=${f4(-wn)} \\) → use \\( (A+Bt)e^{st} \\), not plain exponential.`,
-                    HEAD()));
+                s.push(manualStep(n++, [`Repeated root \\( s=-\\omega_n=${f4(-wn)} \\) → use \\( x_c(t)=(A+Bt)e^{st} \\), not a plain exponential`], HEAD()));
             } else {
                 const s1v = -zeta*wn + wn*Math.sqrt(zeta*zeta-1);
                 const s2v = -zeta*wn - wn*Math.sqrt(zeta*zeta-1);
-                s.push(manualStep(n++,
-                    `\\( s_{1,2}=-\\zeta\\omega_n\\pm\\omega_n\\sqrt{\\zeta^2-1}=${f4(s1v)},\\ ${f4(s2v)} \\) (both real, negative)`,
-                    CALC()));
+                s.push(manualStep(n++, [
+                    `\\( s_{1,2}=-\\zeta\\omega_n\\pm\\omega_n\\sqrt{\\zeta^2-1} \\)`,
+                    `\\( =-${f4(zeta*wn)}\\pm${f4(wn)}\\sqrt{${f4(zeta*zeta-1)}}=${f4(s1v)},\\ ${f4(s2v)} \\) (real, negative)`
+                ], CALC()));
             }
 
+            let xpr0 = 0, vpr0 = 0;
             if (window.isForced) {
                 const r = w/wn;
-                s.push(manualStep(n++,
-                    `\\( r=\\omega/\\omega_n=${f4(r)} \\); \\( X=\\dfrac{F_0/k}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${f4(X)} \\) m`,
-                    CALC() + WARN("square (1−r²)")));
+                const t1 = Math.pow(1-r*r, 2), t2 = Math.pow(2*zeta*r, 2);
+                s.push(manualStep(n++, [
+                    `\\( r=\\omega/\\omega_n=${f2(w)}/${f4(wn)}=${f4(r)} \\)`,
+                    `\\( (1-r^2)^2=${f4(t1)} \\), &nbsp; \\( (2\\zeta r)^2=${f4(t2)} \\)`,
+                    `\\( X=\\dfrac{F_0/k}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=\\dfrac{${f4(f0/k)}}{\\sqrt{${f4(t1+t2)}}}=${f4(X)} \\) m`
+                ], CALC() + WARN("square (1−r²), not just (1−r²)")));
 
                 const phiDeg = rawPhi*180/Math.PI;
-                s.push(manualStep(n++,
-                    `\\( \\phi=\\tan^{-1}\\!\\dfrac{2\\zeta r}{1-r^2}=${f2(phiDeg)}^\\circ \\)`,
-                    CALC() + (r>1 ? WARN("r>1 → +180°") : '')));
+                s.push(manualStep(n++, [
+                    `\\( \\phi=\\tan^{-1}\\!\\dfrac{2\\zeta r}{1-r^2}=\\tan^{-1}\\!\\dfrac{${f4(2*zeta*r)}}{${f4(1-r*r)}}=${f2(phiDeg)}^\\circ \\)`
+                ], CALC() + (r>1 ? WARN("r>1 → add 180°") : '')));
+
+                xpr0 = X*Math.sin(-rawPhi);
+                vpr0 = X*w*Math.cos(-rawPhi);
+                s.push(manualStep(n++, [
+                    `Steady-state part at \\(t=0\\): \\( x_p(0)=X\\sin(-\\phi)=${f4(xpr0)} \\), \\( \\dot x_p(0)=X\\omega\\cos(-\\phi)=${f4(vpr0)} \\)`
+                ], CALC()));
             }
 
-            s.push(manualStep(n++,
-                `A, B from \\(x_0=${x0}\\), \\(v_0=${v0}\\): \\( A=${f4(A)} \\), \\( B=${f4(B)} \\)`,
-                HEAD() + CALC()));
+            const x0t = x0 - xpr0, v0t = v0 - vpr0;
+            if (window.isForced) {
+                s.push(manualStep(n++, [
+                    `Subtract steady-state from actual ICs: \\( x_0'=x_0-x_p(0)=${f2(x0)}-(${f4(xpr0)})=${f4(x0t)} \\)`,
+                    `\\( v_0'=v_0-\\dot x_p(0)=${f2(v0)}-(${f4(vpr0)})=${f4(v0t)} \\)`
+                ], HEAD()));
+            }
 
-            s.push(manualStep(n++,
-                `Check: substitute \\(t=0\\) back into \\(x(t)\\) → must equal \\(x_0=${x0}\\)`,
-                CHECK()));
+            if (zeta === 0) {
+                s.push(manualStep(n++, [
+                    `\\( A=x_0'=${f4(A)} \\)`,
+                    `\\( B=v_0'/\\omega_n=${f4(v0t)}/${f4(wn)}=${f4(B)} \\)`
+                ], CALC()));
+            } else if (zeta < 1) {
+                s.push(manualStep(n++, [
+                    `\\( A=x_0'=${f4(A)} \\)`,
+                    `\\( B=\\dfrac{v_0'+\\zeta\\omega_n A}{\\omega_d}=\\dfrac{${f4(v0t)}+${f4(zeta*wn)}\\times${f4(A)}}{${f4(wd)}}=${f4(B)} \\)`
+                ], CALC()));
+            } else if (Math.abs(zeta - 1) < 0.001) {
+                s.push(manualStep(n++, [
+                    `\\( A=x_0'=${f4(A)} \\)`,
+                    `\\( B=v_0'+\\omega_n A=${f4(v0t)}+${f4(wn)}\\times${f4(A)}=${f4(B)} \\)`
+                ], CALC()));
+            } else {
+                s.push(manualStep(n++, [
+                    `Solve \\( A+B=x_0' \\), \\( s_1A+s_2B=v_0' \\) simultaneously → \\( A=${f4(A)},\\ B=${f4(B)} \\)`
+                ], CALC()));
+            }
+
+            s.push(manualStep(n++, [
+                `Check: put \\(t=0\\) into \\(x(t)\\) → must return \\(x_0=${f2(x0)}\\)`
+            ], CHECK()));
 
             return `<div class="divide-y divide-slate-100">${s.join("")}</div>
-                <p class="text-xs text-slate-500 mt-3">🧠 decide the regime/setup · 🧮 do the arithmetic · ✓ verify at t=0 · ⚠ common slip</p>`;
+                <p class="text-xs text-slate-500 mt-3">🧠 decide the regime/set up · 🧮 do the arithmetic · ✓ verify · ⚠ common slip</p>`;
         };
 
         // ============================================================
@@ -1714,9 +1753,9 @@
             const f2=(x)=>window.fmt(x,2), f3=(x)=>window.fmt(x,3), f4=(x)=>window.fmt(x,4);
             let s=[], k=1;
 
-            s.push(manualStep(k++,
-                `\\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=0 \\) → need \\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\), \\(\\lambda=\\omega^2\\)`,
-                HEAD()));
+            s.push(manualStep(k++, [
+                `\\( \\big([K]-\\omega^2[M]\\big)\\{\\phi\\}=0 \\), non-trivial solution needs \\( \\det\\big([K]-\\omega^2[M]\\big)=0 \\), let \\(\\lambda=\\omega^2\\)`
+            ], HEAD()));
 
             if (n===2) {
                 const a=K[0][0],b=K[0][1],c=K[1][0],d=K[1][1];
@@ -1724,44 +1763,57 @@
                 const A2 = ma*md - mb*mc;
                 const B1 = -(a*md + d*ma) + (b*mc + c*mb);
                 const C0 = (a*d - b*c);
-                s.push(manualStep(k++,
-                    `Expand det: \\( ${f2(A2)}\\lambda^2 ${B1<0?'':'+'}${f2(B1)}\\lambda ${C0<0?'':'+'}${f2(C0)}=0 \\)`,
-                    HEAD()));
-                s.push(manualStep(k++,
-                    `Quadratic formula → \\( \\lambda_1=${f4(res.omega2[0])},\\ \\lambda_2=${f4(res.omega2[1])} \\) → \\( \\omega_1=${f4(res.omega[0])},\\ \\omega_2=${f4(res.omega[1])} \\) rad/s`,
-                    CALC()));
-                s.push(manualStep(k++,
-                    `Check: \\( \\lambda_1+\\lambda_2=${f4(res.omega2[0]+res.omega2[1])} \\) should equal \\(-B/A=${f4(-B1/A2)}\\)`,
-                    CHECK()));
+                const disc = B1*B1 - 4*A2*C0;
+                s.push(manualStep(k++, [
+                    `\\( (K_{11}-\\lambda M_{11})(K_{22}-\\lambda M_{22})-(K_{12}-\\lambda M_{12})(K_{21}-\\lambda M_{21})=0 \\)`,
+                    `Expand → \\( ${f2(A2)}\\lambda^2 ${B1<0?'':'+'}${f2(B1)}\\lambda ${C0<0?'':'+'}${f2(C0)}=0 \\)`
+                ], HEAD()));
+                s.push(manualStep(k++, [
+                    `Discriminant \\( =B^2-4AC=(${f2(B1)})^2-4(${f2(A2)})(${f2(C0)})=${f4(disc)} \\)`,
+                    `\\( \\lambda=\\dfrac{-B\\pm\\sqrt{disc}}{2A}=${f4(res.omega2[0])},\\ ${f4(res.omega2[1])} \\) → \\( \\omega=${f4(res.omega[0])},\\ ${f4(res.omega[1])} \\) rad/s`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `Check: \\( \\lambda_1+\\lambda_2=${f4(res.omega2[0]+res.omega2[1])} \\) should equal \\(-B/A=${f4(-B1/A2)}\\)`
+                ], CHECK()));
+
+                // fully worked back-substitution for BOTH modes (n=2 is small enough to show completely)
+                for (let mi=0; mi<2; mi++) {
+                    const lam = res.omega2[mi];
+                    const rc1 = a - lam*ma, rc2 = b - lam*mb;
+                    const phi2 = Math.abs(rc2) > 1e-9 ? -rc1/rc2 : NaN;
+                    s.push(manualStep(k++, [
+                        `Mode ${mi+1} (\\(\\lambda=${f4(lam)}\\)): row 1 → \\( (${f4(rc1)})\\phi_1+(${f4(rc2)})\\phi_2=0 \\), fix \\(\\phi_1=1\\)`,
+                        `\\( \\phi_2=-\\dfrac{${f4(rc1)}}{${f4(rc2)}}=${f4(phi2)} \\) → \\( \\{\\phi_${mi+1}\\}=\\{1,\\ ${f4(phi2)}\\}^T \\)`
+                    ], CALC()));
+                }
             } else {
-                s.push(manualStep(k++,
-                    `Cofactor-expand to a degree-${n} polynomial in λ (frequency equation)`,
-                    HEAD()));
-                s.push(manualStep(k++,
-                    `Solve polynomial (calculator: equation mode, degree ${n}) → \\( \\lambda=${res.omega2.map(f3).join(",\\,")} \\) → \\( \\omega=${res.omega.map(f3).join(",\\,")} \\) rad/s`,
-                    CALC() + WARN("you form coeffs, calc solves")));
-                s.push(manualStep(k++,
-                    `Check: sum of roots = trace of \\([M]^{-1}[K]\\)`,
-                    CHECK()));
+                s.push(manualStep(k++, [
+                    `Cofactor-expand along row 1 → degree-${n} polynomial in λ (frequency equation)`
+                ], HEAD()));
+                s.push(manualStep(k++, [
+                    `Solve on calculator (equation mode, polynomial degree ${n}) → \\( \\lambda=${res.omega2.map(f3).join(",\\,")} \\)`,
+                    `→ \\( \\omega=${res.omega.map(f3).join(",\\,")} \\) rad/s`
+                ], CALC() + WARN("you form coefficients; calc only solves")));
+                s.push(manualStep(k++, [
+                    `Check: sum of roots = trace of \\([M]^{-1}[K]\\)`
+                ], CHECK()));
+                s.push(manualStep(k++, [
+                    `For each λᵢ: fix \\(\\phi_1=1\\), use rows 1 and 2 of \\( ([K]-\\lambda_i[M])\\{\\phi\\}=0 \\) as 2 equations for \\(\\phi_2,\\phi_3\\) (row 3 is then automatically satisfied — matrix is singular)`
+                ], HEAD()));
+                res.modes.forEach((md,i)=> s.push(manualStep(k++, [
+                    `\\( \\{\\phi_${i+1}\\}=\\{${md.map(f3).join(",\\,")}\\}^T \\)`
+                ], CALC())));
             }
-
-            s.push(manualStep(k++,
-                `For each λᵢ, solve \\( ([K]-\\lambda_i[M])\\{\\phi\\}=0 \\), fix \\(\\phi_1=1\\), solve the rest (ratios only — matrix is singular)`,
-                HEAD()));
-
-            res.modes.forEach((md,i)=> s.push(manualStep(k++,
-                `\\( \\{\\phi_${i+1}\\}=\\{${md.map(f3).join(",\\,")}\\}^T \\)`,
-                CALC())));
 
             if (n>=2) {
                 const o = M.reduce((acc,row,r)=> acc + res.modes[0][r]*row.reduce((s2,mrc,cc)=>s2+mrc*res.modes[1][cc],0), 0);
-                s.push(manualStep(k++,
-                    `Orthogonality: \\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o,4)}\\approx 0 \\) — must use \\([M]\\), not a plain dot product`,
-                    CHECK() + WARN("don't forget [M]")));
+                s.push(manualStep(k++, [
+                    `\\( \\{\\phi_1\\}^T[M]\\{\\phi_2\\}=${window.fmt(o,4)}\\approx 0 \\) ✓ (must use \\([M]\\), not a plain dot product)`
+                ], CHECK() + WARN("don't forget [M]")));
             }
 
             return `<div class="divide-y divide-slate-100">${s.join("")}</div>
-                <p class="text-xs text-slate-500 mt-3">🧠 set up & fix scale · 🧮 solve the polynomial · ✓ check orthogonality</p>`;
+                <p class="text-xs text-slate-500 mt-3">🧠 set up & fix scale · 🧮 solve & back-substitute · ✓ check orthogonality</p>`;
         };
 
         // ============================================================
@@ -1789,9 +1841,10 @@
             const rhs0 = F0.map((f,i)=> f - C[i].reduce((acc,c,j)=>acc+c*v0[j],0) - K[i].reduce((acc,kk,j)=>acc+kk*u0[j],0));
             const a0 = LA.solve(M, rhs0);
 
-            s.push(manualStep(k++,
-                `\\( [M]\\{a_0\\}=\\{F_0\\}-[C]\\{v_0\\}-[K]\\{u_0\\} \\) → \\( \\{a_0\\}=\\{${a0.map(f4).join(",\\,")}\\}^T \\)`,
-                CALC()));
+            s.push(manualStep(k++, [
+                `\\( [M]\\{a_0\\}=\\{F_0\\}-[C]\\{v_0\\}-[K]\\{u_0\\} \\)`,
+                `\\( \\{a_0\\}=\\{${a0.map(f4).join(",\\,")}\\}^T \\)`
+            ], CALC()));
 
             if (method === 'newmark') {
                 const beta=0.25, gamma=0.5;
@@ -1802,19 +1855,23 @@
                 const F1 = Ft(dt);
                 const Feff = F1.map((f,i)=>f+LA.matvec(M,rM)[i]+LA.matvec(C,rC)[i]);
                 const u1 = LA.solve(Keff, Feff);
+                const a1 = u1.map((ui,i)=>c1*(ui-u0[i])-c3*v0[i]-c4*a0[i]);
+                const v1 = v0.map((vi,i)=>vi+dt*((1-gamma)*a0[i]+gamma*a1[i]));
 
-                s.push(manualStep(k++,
-                    `\\( [K]_{eff}=[K]+c_1[M]+c_2[C] \\), \\(c_1=${f4(c1)}\\), \\(c_2=${f4(c2)}\\) (β=¼, γ=½)`,
-                    CALC()));
-                s.push(manualStep(k++,
-                    `Solve \\( [K]_{eff}\\{u_1\\}={F}_{eff} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\) — <strong>this one step only</strong>`,
-                    CALC() + HEAD()));
-                s.push(manualStep(k++,
-                    `Repeat the same formula for steps 2…N — use a computer/spreadsheet, not hand arithmetic`,
-                    HEAD()));
-                s.push(manualStep(k++,
-                    `Accuracy: keep \\( \\Delta t \\lesssim T_n/10 = ${f4(2*Math.PI/Math.max(...res.omega)/10)} \\) s (Newmark β=¼,γ=½ is unconditionally <em>stable</em>, but still needs small Δt for <em>accuracy</em>)`,
-                    CHECK()));
+                s.push(manualStep(k++, [
+                    `\\( c_1=\\dfrac{1}{\\beta\\Delta t^2}=${f4(c1)} \\), &nbsp; \\( c_2=\\dfrac{\\gamma}{\\beta\\Delta t}=${f4(c2)} \\) &nbsp; (β=¼, γ=½)`,
+                    `\\( [K]_{eff}=[K]+c_1[M]+c_2[C] \\)`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `\\( \\{F\\}_{eff}=\\{F_1\\}+[M]\\{c_1u_0+c_3v_0+c_4a_0\\}+[C]\\{\\ldots\\}=\\{${Feff.map(f3).join(",\\,")}\\}^T \\)`,
+                    `Solve \\( [K]_{eff}\\{u_1\\}=\\{F\\}_{eff} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\)`
+                ], CALC() + HEAD()));
+                s.push(manualStep(k++, [
+                    `\\( \\{a_1\\},\\{v_1\\} \\) updated the same way — repeat for steps 2…N by computer, not by hand`
+                ], HEAD()));
+                s.push(manualStep(k++, [
+                    `Accuracy: keep \\( \\Delta t\\lesssim T_n/10=${f4(2*Math.PI/Math.max(...res.omega)/10)} \\) s (Newmark β=¼,γ=½ is unconditionally stable, but still needs small Δt for accuracy)`
+                ], CHECK()));
 
             } else if (method === 'central') {
                 const uPrev = u0.map((ui,i)=> ui - dt*v0[i] + 0.5*dt*dt*a0[i]);
@@ -1827,18 +1884,19 @@
                 const dtcrit = 2/wmax;
                 const stable = dt <= dtcrit;
 
-                s.push(manualStep(k++,
-                    `\\( \\{u_{-1}\\}=\\{u_0\\}-\\Delta t\\{v_0\\}+\\tfrac{\\Delta t^2}{2}\\{a_0\\}=\\{${uPrev.map(f6).join(",\\,")}\\}^T \\)`,
-                    CALC()));
-                s.push(manualStep(k++,
-                    `Solve \\( [\\hat M]\\{u_1\\}=\\{...\\} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\) — <strong>this one step only</strong>`,
-                    CALC() + HEAD()));
-                s.push(manualStep(k++,
-                    `<strong>STABILITY (check first!):</strong> \\( \\Delta t\\le 2/\\omega_{max}=${f6(dtcrit)} \\) s; used \\(\\Delta t=${f6(dt)}\\) s → ${stable?'<span class="text-emerald-600 font-bold">stable ✓</span>':'<span class="text-red-600 font-bold">UNSTABLE ✗</span>'}`,
-                    CHECK() + (stable?'':WARN("reduce Δt"))));
-                s.push(manualStep(k++,
-                    `Repeat the same formula for steps 2…N — use a computer/spreadsheet, not hand arithmetic`,
-                    HEAD()));
+                s.push(manualStep(k++, [
+                    `\\( \\{u_{-1}\\}=\\{u_0\\}-\\Delta t\\{v_0\\}+\\tfrac{\\Delta t^2}{2}\\{a_0\\}=\\{${uPrev.map(f6).join(",\\,")}\\}^T \\)`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `\\( [\\hat M]=\\dfrac{1}{\\Delta t^2}[M]+\\dfrac{1}{2\\Delta t}[C] \\), &nbsp; RHS \\( =\\{F_0\\}-[\\ldots]\\{u_{-1}\\}-[\\ldots]\\{u_0\\}=\\{${rhs.map(f3).join(",\\,")}\\}^T \\)`,
+                    `Solve \\( [\\hat M]\\{u_1\\}=\\text{RHS} \\) → \\( \\{u_1\\}=\\{${u1.map(f6).join(",\\,")}\\}^T \\) at \\(t=\\Delta t\\)`
+                ], CALC() + HEAD()));
+                s.push(manualStep(k++, [
+                    `<strong>STABILITY (check before trusting any output):</strong> \\( \\Delta t\\le 2/\\omega_{max}=${f6(dtcrit)} \\) s; used \\(\\Delta t=${f6(dt)}\\) s → ${stable?'<span class="text-emerald-600 font-bold">stable ✓</span>':'<span class="text-red-600 font-bold">UNSTABLE ✗</span>'}`
+                ], CHECK() + (stable?'':WARN("reduce Δt"))));
+                s.push(manualStep(k++, [
+                    `Repeat for steps 2…N by computer, not by hand`
+                ], HEAD()));
 
             } else { // modal
                 const Phi = res.modes.map(md=>{
@@ -1848,22 +1906,23 @@
                 const q0 = Phi.map(ph=>LA.matvec(M,u0).reduce((acc,v,i)=>acc+v*ph[i],0));
                 const p0 = Phi.map(ph=>F0.reduce((acc,f,i)=>acc+f*ph[i],0));
 
-                s.push(manualStep(k++,
-                    `Mass-normalize modes so \\( \\{\\phi_i\\}^T[M]\\{\\phi_i\\}=1 \\)`,
-                    CALC()));
-                s.push(manualStep(k++,
-                    `Project: \\( p_r=\\{\\phi_r\\}^T\\{F\\}=\\{${p0.map(f3).join(",\\,")}\\} \\), \\( q_{r,0}=\\{\\phi_r\\}^T[M]\\{u_0\\}=\\{${q0.map(f4).join(",\\,")}\\} \\)`,
-                    CALC()));
-                s.push(manualStep(k++,
-                    `Each mode now solves as \\( \\ddot q_r+2\\zeta_r\\omega_r\\dot q_r+\\omega_r^2 q_r=p_r(t) \\) — <strong>same SDOF equation as the SDOF tab</strong>, one per mode`,
-                    HEAD()));
-                s.push(manualStep(k++,
-                    `Recombine: \\( \\{u(t)\\}=\\sum_r q_r(t)\\{\\phi_r\\} \\) — let the computer sum all modes at each time point`,
-                    CALC() + HEAD()));
+                s.push(manualStep(k++, [
+                    `Mass-normalize each mode so \\( \\{\\phi_i\\}^T[M]\\{\\phi_i\\}=1 \\)`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `\\( p_r=\\{\\phi_r\\}^T\\{F\\}=\\{${p0.map(f3).join(",\\,")}\\} \\)`,
+                    `\\( q_{r,0}=\\{\\phi_r\\}^T[M]\\{u_0\\}=\\{${q0.map(f4).join(",\\,")}\\} \\)`
+                ], CALC()));
+                s.push(manualStep(k++, [
+                    `Each mode solves \\( \\ddot q_r+2\\zeta_r\\omega_r\\dot q_r+\\omega_r^2q_r=p_r(t) \\) — <strong>same SDOF equation as the SDOF tab</strong>, one per mode`
+                ], HEAD()));
+                s.push(manualStep(k++, [
+                    `Recombine: \\( \\{u(t)\\}=\\sum_r q_r(t)\\{\\phi_r\\} \\) — sum all modes at each time point by computer`
+                ], CALC() + HEAD()));
             }
 
             return `<div class="divide-y divide-slate-100">${s.join("")}</div>
-                <p class="text-xs text-slate-500 mt-3">🧠 set up once, compute step 1 by hand · 🧮 then let a computer iterate · ✓ always check stability/accuracy first</p>`;
+                <p class="text-xs text-slate-500 mt-3">🧠 set up once, compute step 1 by hand · 🧮 then a computer iterates · ✓ always check stability/accuracy first</p>`;
         };
 
 
